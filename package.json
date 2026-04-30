@@ -1,0 +1,23 @@
+{
+  "name": "pi-ask-user-question",
+  "version": "1.0.0",
+  "description": "Pi coding agent extension — interactive user question tool",
+  "main": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3"
+  },
+  "lint-staged": {
+    "src/**/*.ts": "prettier --write"
+  }
+}
