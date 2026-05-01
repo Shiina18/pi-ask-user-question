@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createQuestionComponent } from "./component.js";
+import { formatDetails, formatSingleResult } from "./formatter.js";
 import { AskUserQuestionParams } from "./schema.js";
 
 export default function (pi: ExtensionAPI): void {
@@ -7,7 +8,7 @@ export default function (pi: ExtensionAPI): void {
 		name: "ask_user_question",
 		label: "Ask User Question",
 		description:
-			"Ask the user 1-4 questions with multiple-choice options to gather preferences, clarify ambiguous instructions, or let the user choose between valid approaches. An 'Other' option for freeform input is provided automatically.",
+			"Ask the user questions to gather information, clarify ambiguous instructions, understand preferences, make decisions, or offer them choices.",
 		promptSnippet:
 			"Ask the user 1-4 focused questions with multiple-choice options to gather preferences or clarify instructions",
 		promptGuidelines: [
@@ -19,7 +20,7 @@ export default function (pi: ExtensionAPI): void {
 		parameters: AskUserQuestionParams,
 
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			// Phase 3: single question only
+			// Phase 4: single question, formatted result
 			const q = params.questions[0];
 
 			const result = await ctx.ui.custom<{
@@ -43,15 +44,22 @@ export default function (pi: ExtensionAPI): void {
 			});
 
 			if (!result) {
-				return {
-					content: [{ type: "text" as const, text: "User cancelled." }],
-					details: {},
-				};
+				throw new Error("User cancelled");
 			}
 
+			const text = formatSingleResult(q.question, result.answer);
+			const details = formatDetails({ [q.question]: result.answer }, [
+				{
+					question: q.question,
+					header: q.header,
+					options: q.options.map((o) => ({ label: o.label, description: o.description })),
+					multiSelect: q.multiSelect ?? false,
+				},
+			]);
+
 			return {
-				content: [{ type: "text" as const, text: result.answer }],
-				details: {},
+				content: [{ type: "text" as const, text }],
+				details,
 			};
 		},
 	});
