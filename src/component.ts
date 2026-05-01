@@ -25,21 +25,28 @@ export interface SelectionResult {
 
 export type QuestionResult = SelectionResult | null;
 
-const OTHER_LABEL = "Other";
-const OTHER_DESCRIPTION = "Type a custom answer";
+const OTHER_PLACEHOLDER = "Type something";
 const NEXT_LABEL = "Next";
 const SUBMIT_LABEL = "Submit";
 const SUBMIT_ANSWERS_LABEL = "Submit answers";
 const CANCEL_LABEL = "Cancel";
 const SELECTED_MARKER = "✓";
 const CURSOR = "▌";
-const HELP_SINGLE = "Enter to select · ↑/↓ to navigate · Esc to cancel";
-const HELP_MULTI = "Space/Enter to toggle · Submit to confirm · ↑/↓ to navigate · Esc to cancel";
-const HELP_BACK = "← to go back · ";
+const FOCUS_MARKER = "❯";
+const HELP_SINGLE = "Enter/Space to select · ↑/↓ to navigate · Esc to cancel";
+const HELP_MULTI_QUESTION = "Enter/Space to select · Tab/Arrow keys to navigate · Esc to cancel";
 
 const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
 const KB_CONFIRM = "tui.select.confirm" as const;
+
+function boldText(theme: Theme, text: string): string {
+	return `\x1b[1m${theme.bold(text)}\x1b[22m`;
+}
+
+function renderPlaceholderWithCursor(theme: Theme): string {
+	return theme.inverse(OTHER_PLACEHOLDER[0]) + theme.fg("dim", OTHER_PLACEHOLDER.slice(1));
+}
 
 function getPrintableChar(data: string): string | undefined {
 	const kitty = decodeKittyPrintable(data);
@@ -54,6 +61,11 @@ function getPrintableChar(data: string): string | undefined {
 
 function buildItems(optionCount: number): QuestionItem[] {
 	return [...Array.from({ length: optionCount }, () => ({ type: "option" as const })), { type: "input" }];
+}
+
+function getNumberShortcutIndex(data: string): number | undefined {
+	if (!/^[1-9]$/.test(data)) return undefined;
+	return Number(data) - 1;
 }
 
 function resolveResult(params: QuestionParams, state: QuestionState): SelectionResult {
@@ -193,8 +205,27 @@ export function createQuestionComponent(
 		refresh();
 	}
 
+	function focusItem(index: number): void {
+		questionStates[currentIndex] = {
+			...questionStates[currentIndex],
+			highlightedIndex: index,
+			isSubmitFocused: false,
+			confirmed: false,
+		};
+	}
+
 	function getMultiSelectConfirmLabel(): string {
 		return currentIndex === totalQuestions - 1 ? SUBMIT_LABEL : NEXT_LABEL;
+	}
+
+	function renderHeaderTabs(): string {
+		return params
+			.map((q, index) => {
+				const tab = `□ ${q.header}`;
+				if (index === currentIndex) return theme.bg("selectedBg", tab);
+				return theme.fg("dim", tab);
+			})
+			.join(" ");
 	}
 
 	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
@@ -205,57 +236,52 @@ export function createQuestionComponent(
 			const item = state.items[i];
 			const focused = !state.isSubmitFocused && i === state.highlightedIndex;
 			const checked = multiSelect && state.selectedIndices.includes(i);
+			const selected = !multiSelect && state.selectedIndex === i;
+			const chosen = checked || selected;
+			const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
+			const checkMarker = multiSelect ? `${checked ? "[x]" : "[ ]"} ` : "";
+			const prefix = focused ? `${theme.fg("accent", FOCUS_MARKER)} ` : "  ";
+			const numberPrefix = `${i + 1}. `;
 
 			if (item.type === "option") {
 				const opt = q.options[i];
-				const marker = multiSelect ? (checked ? "[x]" : "[ ]") : "";
-				const selected = !multiSelect && state.selectedIndex === i;
-				const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
-				const prefix = focused ? `  ${theme.fg("accent", "❯")} ` : "    ";
-				if (multiSelect) {
-					if (focused) {
-						lines.push(`${prefix}${marker} ${theme.bold(opt.label)}`);
-						lines.push(`        ${theme.fg("muted", opt.description)}`);
-					} else {
-						lines.push(`${prefix}${marker} ${opt.label}`);
-						lines.push(`        ${theme.fg("dim", opt.description)}`);
-					}
-				} else if (focused) {
-					const label = selected ? theme.fg("success", theme.bold(opt.label)) : theme.bold(opt.label);
-					lines.push(`${prefix}${label}${selectedMarker}`);
-					lines.push(`    ${selected ? theme.fg("success", opt.description) : theme.fg("muted", opt.description)}`);
+				const descriptionPrefix = "     ";
+				const descriptionStyle = chosen ? "success" : focused ? "muted" : "dim";
+				if (focused) {
+					const rowContent = `${numberPrefix}${checkMarker}${theme.bold(opt.label)}`;
+					const row = chosen ? theme.fg("success", rowContent) : rowContent;
+					lines.push(`${prefix}${row}${selectedMarker}`);
+					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
 				} else {
-					const label = selected ? theme.fg("success", opt.label) : opt.label;
-					lines.push(`    ${label}${selectedMarker}`);
-					lines.push(`    ${selected ? theme.fg("success", opt.description) : theme.fg("dim", opt.description)}`);
+					const rowContent = `${numberPrefix}${checkMarker}${opt.label}`;
+					const row = chosen ? theme.fg("success", rowContent) : rowContent;
+					lines.push(`${prefix}${row}${selectedMarker}`);
+					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
 				}
 				continue;
 			}
 
-			const otherMarker = multiSelect ? (checked ? "[x] " : "[ ] ") : "";
-			const selected = !multiSelect && state.selectedIndex === i;
-			const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
-			const otherLabel = selected ? theme.fg("success", OTHER_LABEL) : OTHER_LABEL;
 			if (focused) {
-				const label = selected ? theme.fg("success", theme.bold(OTHER_LABEL)) : theme.bold(OTHER_LABEL);
-				lines.push(`  ${theme.fg("accent", "❯")} ${otherMarker}${label}${selectedMarker}`);
-				lines.push(`    ${" ".repeat(multiSelect ? 4 : 0)}${state.textInputValue}${CURSOR}`);
+				const hasInput = state.textInputValue.length > 0;
+				const inputText = hasInput ? `${state.textInputValue}${CURSOR}` : renderPlaceholderWithCursor(theme);
+				const label = hasInput ? theme.bold(inputText) : inputText;
+				const rowContent = `${numberPrefix}${checkMarker}${label}`;
+				const row = chosen ? theme.fg("success", rowContent) : rowContent;
+				lines.push(`${prefix}${row}${selectedMarker}`);
 			} else {
-				lines.push(`    ${otherMarker}${otherLabel}${selectedMarker}`);
-				lines.push(
-					`    ${" ".repeat(multiSelect ? 4 : 0)}${
-						selected ? theme.fg("success", OTHER_DESCRIPTION) : theme.fg("dim", OTHER_DESCRIPTION)
-					}`,
-				);
+				const inputText = state.textInputValue.length > 0 ? state.textInputValue : theme.fg("dim", OTHER_PLACEHOLDER);
+				const rowContent = `${numberPrefix}${checkMarker}${inputText}`;
+				const row = chosen ? theme.fg("success", rowContent) : rowContent;
+				lines.push(`${prefix}${row}${selectedMarker}`);
 			}
 		}
 
 		if (multiSelect) {
 			const confirmLabel = getMultiSelectConfirmLabel();
 			if (state.isSubmitFocused) {
-				lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(confirmLabel)}`);
+				lines.push(`${theme.fg("accent", FOCUS_MARKER)}    ${theme.bold(confirmLabel)}`);
 			} else {
-				lines.push(`    ${confirmLabel}`);
+				lines.push(`     ${confirmLabel}`);
 			}
 		}
 
@@ -291,7 +317,7 @@ export function createQuestionComponent(
 		lines.push(`${submitPrefix}${reviewFocusedIndex === 0 ? theme.bold(SUBMIT_ANSWERS_LABEL) : SUBMIT_ANSWERS_LABEL}`);
 		lines.push(`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.bold(CANCEL_LABEL) : CANCEL_LABEL}`);
 		lines.push("");
-		lines.push(theme.fg("dim", "Enter to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
+		lines.push(theme.fg("dim", "Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
 
 		return lines;
 	}
@@ -307,22 +333,17 @@ export function createQuestionComponent(
 		const lines: string[] = [];
 		const q = params[currentIndex];
 		const state = questionStates[currentIndex];
-		const multiSelect = q.multiSelect ?? false;
 
-		if (isMultiQuestion) {
-			lines.push(theme.fg("dim", `Question ${currentIndex + 1} of ${totalQuestions}`));
-		}
+		lines.push(renderHeaderTabs());
+		lines.push("");
 
-		lines.push(theme.bold(q.question));
+		lines.push(boldText(theme, q.question));
 		lines.push("");
 
 		lines.push(...renderQuestionLines(q, state));
 
 		lines.push("");
-		let helpText = multiSelect ? HELP_MULTI : HELP_SINGLE;
-		if (isMultiQuestion && currentIndex > 0) {
-			helpText = HELP_BACK + helpText;
-		}
+		const helpText = isMultiQuestion ? HELP_MULTI_QUESTION : HELP_SINGLE;
 		lines.push(theme.fg("dim", helpText));
 
 		cachedLines = lines;
@@ -343,7 +364,7 @@ export function createQuestionComponent(
 			refresh();
 			return;
 		}
-		if (kb.matches(data, KB_CONFIRM)) {
+		if (kb.matches(data, KB_CONFIRM) || matchesKey(data, Key.space)) {
 			if (reviewFocusedIndex === 1) {
 				done(null);
 				return;
@@ -401,6 +422,17 @@ export function createQuestionComponent(
 			return;
 		}
 
+		const shortcutIndex = getNumberShortcutIndex(data);
+		if (shortcutIndex !== undefined && !inputFocused && !state.isSubmitFocused && shortcutIndex < state.items.length) {
+			focusItem(shortcutIndex);
+			if (state.items[shortcutIndex].type === "input") {
+				refresh();
+			} else {
+				dispatch({ type: "selectCurrent" });
+			}
+			return;
+		}
+
 		if (kb.matches(data, KB_UP)) {
 			dispatch({ type: "navigateUp" });
 			return;
@@ -414,14 +446,16 @@ export function createQuestionComponent(
 			return;
 		}
 
-		if (params[currentIndex].multiSelect && matchesKey(data, Key.space)) {
-			dispatch({ type: "toggleSelection" });
+		if (matchesKey(data, Key.space) && !inputFocused) {
+			dispatch({ type: params[currentIndex].multiSelect ? "toggleSelection" : "selectCurrent" });
 			return;
 		}
 
 		if (inputFocused) {
 			if (matchesKey(data, Key.backspace)) {
 				dispatch({ type: "updateTextInput", text: state.textInputValue.slice(0, -1) });
+			} else if (matchesKey(data, Key.space) && state.textInputValue.length === 0) {
+				return;
 			} else {
 				const ch = getPrintableChar(data);
 				if (ch !== undefined) {

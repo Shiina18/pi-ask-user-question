@@ -125,7 +125,7 @@ export function reducer(state: QuestionState, action: Action): QuestionState {
 			return { ...state, selectedIndices, textInputValue: action.text };
 		}
 		default: {
-			const _exhaustive: never = action;
+			action satisfies never;
 			return state;
 		}
 	}
