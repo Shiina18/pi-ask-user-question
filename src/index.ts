@@ -25,7 +25,7 @@ export default function (pi: ExtensionAPI): void {
 			const result = await ctx.ui.custom<{
 				answer: string;
 				selectedIndex: number;
-			}>((_tui, theme, kb, done) => {
+			} | null>((tui, theme, kb, done) => {
 				return createQuestionComponent(
 					{
 						question: q.question,
@@ -37,9 +37,17 @@ export default function (pi: ExtensionAPI): void {
 					},
 					theme,
 					kb,
+					tui,
 					done,
 				);
 			});
+
+			if (!result) {
+				return {
+					content: [{ type: "text" as const, text: "User cancelled." }],
+					details: {},
+				};
+			}
 
 			return {
 				content: [{ type: "text" as const, text: result.answer }],

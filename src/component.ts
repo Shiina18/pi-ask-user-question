@@ -1,5 +1,6 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import type { Component, KeybindingsManager } from "@mariozechner/pi-tui";
+import type { TUI } from "@mariozechner/pi-tui";
+import { type Component, Key, type KeybindingsManager, matchesKey } from "@mariozechner/pi-tui";
 import { type Action, createInitialState, type QuestionState, reducer } from "./state.js";
 
 export interface QuestionParams {
@@ -21,10 +22,17 @@ export function createQuestionComponent(
 	params: QuestionParams,
 	theme: Theme,
 	kb: KeybindingsManager,
-	done: (result: SelectionResult) => void,
+	tui: TUI,
+	done: (result: SelectionResult | null) => void,
 ): Component & { dispose?(): void } {
 	const optionCount = params.options.length;
 	let state: QuestionState = createInitialState(optionCount);
+	let cachedLines: string[] | undefined;
+
+	function refresh(): void {
+		cachedLines = undefined;
+		tui.requestRender();
+	}
 
 	function dispatch(action: Action): void {
 		state = reducer(state, action);
@@ -33,10 +41,14 @@ export function createQuestionComponent(
 				answer: params.options[state.selectedIndex!].label,
 				selectedIndex: state.selectedIndex!,
 			});
+			return;
 		}
+		refresh();
 	}
 
 	function render(_width: number): string[] {
+		if (cachedLines) return cachedLines;
+
 		const lines: string[] = [];
 
 		lines.push(theme.bold(params.question));
@@ -55,10 +67,15 @@ export function createQuestionComponent(
 			}
 		}
 
+		cachedLines = lines;
 		return lines;
 	}
 
 	function handleInput(data: string): void {
+		if (matchesKey(data, Key.escape)) {
+			done(null);
+			return;
+		}
 		if (kb.matches(data, KB_UP)) {
 			dispatch({ type: "navigateUp" });
 		} else if (kb.matches(data, KB_DOWN)) {
@@ -68,7 +85,9 @@ export function createQuestionComponent(
 		}
 	}
 
-	function invalidate(): void {}
+	function invalidate(): void {
+		cachedLines = undefined;
+	}
 
 	return { render, handleInput, invalidate };
 }
