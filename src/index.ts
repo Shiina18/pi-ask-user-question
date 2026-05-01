@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { createQuestionComponent } from "./component.js";
 import { AskUserQuestionParams } from "./schema.js";
 
 export default function (pi: ExtensionAPI): void {
@@ -17,9 +18,31 @@ export default function (pi: ExtensionAPI): void {
 		],
 		parameters: AskUserQuestionParams,
 
-		async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			// Phase 3: single question only
+			const q = params.questions[0];
+
+			const result = await ctx.ui.custom<{
+				answer: string;
+				selectedIndex: number;
+			}>((_tui, theme, kb, done) => {
+				return createQuestionComponent(
+					{
+						question: q.question,
+						header: q.header,
+						options: q.options.map((o) => ({
+							label: o.label,
+							description: o.description,
+						})),
+					},
+					theme,
+					kb,
+					done,
+				);
+			});
+
 			return {
-				content: [{ type: "text", text: "stub" }],
+				content: [{ type: "text" as const, text: result.answer }],
 				details: {},
 			};
 		},

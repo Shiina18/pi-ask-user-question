@@ -22,13 +22,11 @@ export const AskUserQuestionParams = Type.Object(
 										"The display text for this option. Should be concise (1-5 words) and clearly describe the choice.",
 								}),
 								description: Type.String({
-									description:
-										"Explanation of what this option means or what will happen if chosen.",
+									description: "Explanation of what this option means or what will happen if chosen.",
 								}),
 								preview: Type.Optional(
 									Type.String({
-										description:
-											"Optional preview content rendered when this option is focused.",
+										description: "Optional preview content rendered when this option is focused.",
 									}),
 								),
 							},
