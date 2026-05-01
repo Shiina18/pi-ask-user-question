@@ -20,7 +20,6 @@ export default function (pi: ExtensionAPI): void {
 		parameters: AskUserQuestionParams,
 
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			// Phase 4: single question, formatted result
 			const q = params.questions[0];
 
 			const result = await ctx.ui.custom<{

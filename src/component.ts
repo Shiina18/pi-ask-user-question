@@ -1,7 +1,13 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import type { TUI } from "@mariozechner/pi-tui";
-import { type Component, Key, type KeybindingsManager, matchesKey } from "@mariozechner/pi-tui";
-import { type Action, createInitialState, type QuestionState, reducer } from "./state.js";
+import {
+	type Component,
+	decodeKittyPrintable,
+	Key,
+	type KeybindingsManager,
+	matchesKey,
+	type TUI,
+} from "@mariozechner/pi-tui";
+import { type Action, createInitialState, type QuestionItem, type QuestionState, reducer } from "./state.js";
 
 export interface QuestionParams {
 	question: string;
@@ -14,9 +20,24 @@ export interface SelectionResult {
 	selectedIndex: number;
 }
 
+const OTHER_LABEL = "Other";
+const OTHER_DESCRIPTION = "Type a custom answer";
+const CURSOR = "▌";
+
 const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
 const KB_CONFIRM = "tui.select.confirm" as const;
+
+function getPrintableChar(data: string): string | undefined {
+	const kitty = decodeKittyPrintable(data);
+	if (kitty !== undefined) return kitty;
+	const hasControlChars = [...data].some((ch) => {
+		const code = ch.charCodeAt(0);
+		return code < 32 || code === 0x7f || (code >= 0x80 && code <= 0x9f);
+	});
+	if (!hasControlChars && data.length > 0) return data;
+	return undefined;
+}
 
 export function createQuestionComponent(
 	params: QuestionParams,
@@ -25,8 +46,8 @@ export function createQuestionComponent(
 	tui: TUI,
 	done: (result: SelectionResult | null) => void,
 ): Component & { dispose?(): void } {
-	const optionCount = params.options.length;
-	let state: QuestionState = createInitialState(optionCount);
+	const items: QuestionItem[] = [...params.options.map(() => ({ type: "option" as const })), { type: "input" }];
+	let state: QuestionState = createInitialState(items);
 	let cachedLines: string[] | undefined;
 
 	function refresh(): void {
@@ -37,10 +58,13 @@ export function createQuestionComponent(
 	function dispatch(action: Action): void {
 		state = reducer(state, action);
 		if (state.confirmed) {
-			done({
-				answer: params.options[state.selectedIndex!].label,
-				selectedIndex: state.selectedIndex!,
-			});
+			const selectedIndex = state.selectedIndex!;
+			const selectedItem = state.items[selectedIndex];
+			if (selectedItem?.type === "input") {
+				done({ answer: state.textInputValue, selectedIndex });
+			} else {
+				done({ answer: params.options[selectedIndex].label, selectedIndex });
+			}
 			return;
 		}
 		refresh();
@@ -50,20 +74,31 @@ export function createQuestionComponent(
 		if (cachedLines) return cachedLines;
 
 		const lines: string[] = [];
-
 		lines.push(theme.bold(params.question));
 		lines.push("");
 
-		for (let i = 0; i < params.options.length; i++) {
-			const opt = params.options[i];
-			const focused = i === state.highlightedIndex && !state.confirmed;
+		for (let i = 0; i < state.items.length; i++) {
+			const item = state.items[i];
+			const focused = i === state.highlightedIndex;
+
+			if (item.type === "option") {
+				const opt = params.options[i];
+				if (focused) {
+					lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(opt.label)}`);
+					lines.push(`    ${theme.fg("muted", opt.description)}`);
+				} else {
+					lines.push(`    ${opt.label}`);
+					lines.push(`    ${theme.fg("dim", opt.description)}`);
+				}
+				continue;
+			}
 
 			if (focused) {
-				lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(opt.label)}`);
-				lines.push(`    ${theme.fg("muted", opt.description)}`);
+				lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(OTHER_LABEL)}`);
+				lines.push(`    ${state.textInputValue}${CURSOR}`);
 			} else {
-				lines.push(`    ${opt.label}`);
-				lines.push(`    ${theme.fg("dim", opt.description)}`);
+				lines.push(`    ${OTHER_LABEL}`);
+				lines.push(`    ${theme.fg("dim", OTHER_DESCRIPTION)}`);
 			}
 		}
 
@@ -72,16 +107,39 @@ export function createQuestionComponent(
 	}
 
 	function handleInput(data: string): void {
+		const focusedItem = state.items[state.highlightedIndex];
+
 		if (matchesKey(data, Key.escape)) {
+			if (focusedItem?.type === "input" && state.textInputValue.length > 0) {
+				dispatch({ type: "updateTextInput", text: "" });
+				return;
+			}
 			done(null);
 			return;
 		}
+
 		if (kb.matches(data, KB_UP)) {
 			dispatch({ type: "navigateUp" });
-		} else if (kb.matches(data, KB_DOWN)) {
+			return;
+		}
+		if (kb.matches(data, KB_DOWN)) {
 			dispatch({ type: "navigateDown" });
-		} else if (kb.matches(data, KB_CONFIRM)) {
+			return;
+		}
+		if (kb.matches(data, KB_CONFIRM)) {
 			dispatch({ type: "selectCurrent" });
+			return;
+		}
+
+		if (focusedItem?.type === "input") {
+			if (matchesKey(data, Key.backspace)) {
+				dispatch({ type: "updateTextInput", text: state.textInputValue.slice(0, -1) });
+			} else {
+				const ch = getPrintableChar(data);
+				if (ch !== undefined) {
+					dispatch({ type: "updateTextInput", text: state.textInputValue + ch });
+				}
+			}
 		}
 	}
 
