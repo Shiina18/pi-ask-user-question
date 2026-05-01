@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createQuestionComponent } from "./component.js";
-import { formatDetails, formatSingleResult } from "./formatter.js";
+import { formatDetails, formatResult } from "./formatter.js";
 import { AskUserQuestionParams } from "./schema.js";
 
 export default function (pi: ExtensionAPI): void {
@@ -46,7 +46,7 @@ export default function (pi: ExtensionAPI): void {
 				throw new Error("User cancelled");
 			}
 
-			const text = formatSingleResult(q.question, result.answer);
+			const text = formatResult({ [q.question]: result.answer });
 			const details = formatDetails({ [q.question]: result.answer }, [
 				{
 					question: q.question,

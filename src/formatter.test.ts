@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatDetails, formatSingleResult } from "./formatter.js";
+import { formatDetails, formatResult, formatSingleResult } from "./formatter.js";
+
+describe("formatResult", () => {
+	it("formats multiple answers with comma-space separators", () => {
+		const result = formatResult({
+			"Which library should we use?": "React",
+			"Which test runner should we use?": "Vitest",
+		});
+
+		expect(result).toBe(
+			'User has answered your questions: "Which library should we use?"="React", "Which test runner should we use?"="Vitest". You can now continue with the user\'s answers in mind.',
+		);
+	});
+});
 
 describe("formatSingleResult", () => {
 	it("formats basic question and answer", () => {
