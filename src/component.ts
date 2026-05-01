@@ -29,6 +29,7 @@ const SUBMIT_LABEL = "Submit";
 const CURSOR = "▌";
 const HELP_SINGLE = "Enter to select · ↑/↓ to navigate · Esc to cancel";
 const HELP_MULTI = "Space/Enter to toggle · Submit to confirm · ↑/↓ to navigate · Esc to cancel";
+const HELP_BACK = "← to go back · ";
 
 const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
@@ -45,25 +46,15 @@ function getPrintableChar(data: string): string | undefined {
 	return undefined;
 }
 
-export function createQuestionComponent(
-	params: QuestionParams,
-	theme: Theme,
-	kb: KeybindingsManager,
-	tui: TUI,
-	done: (result: SelectionResult | null) => void,
-): Component & { dispose?(): void } {
+function buildItems(optionCount: number): QuestionItem[] {
+	return [...Array.from({ length: optionCount }, () => ({ type: "option" as const })), { type: "input" }];
+}
+
+function resolveResult(params: QuestionParams, state: QuestionState): SelectionResult {
 	const multiSelect = params.multiSelect ?? false;
-	const items: QuestionItem[] = [...params.options.map(() => ({ type: "option" as const })), { type: "input" }];
-	let state: QuestionState = createInitialState(items, multiSelect);
-	let cachedLines: string[] | undefined;
+	const inputIndex = state.items.findIndex((item) => item.type === "input");
 
-	function refresh(): void {
-		cachedLines = undefined;
-		tui.requestRender();
-	}
-
-	function resolveMultiResult(): SelectionResult {
-		const inputIndex = state.items.findIndex((item) => item.type === "input");
+	if (multiSelect) {
 		const orderedIndices = state.selectedIndices.filter((idx) => idx !== inputIndex);
 		if (inputIndex !== -1 && state.selectedIndices.includes(inputIndex) && state.textInputValue.length > 0) {
 			orderedIndices.push(inputIndex);
@@ -85,31 +76,66 @@ export function createQuestionComponent(
 		};
 	}
 
+	const selectedIndex = state.selectedIndex!;
+	const selectedItem = state.items[selectedIndex];
+	if (selectedItem?.type === "input") {
+		return { answer: state.textInputValue, selectedIndex };
+	}
+	return { answer: params.options[selectedIndex].label, selectedIndex };
+}
+
+export function createQuestionComponent(
+	params: QuestionParams[],
+	theme: Theme,
+	kb: KeybindingsManager,
+	tui: TUI,
+	done: (results: SelectionResult[] | null) => void,
+): Component & { dispose?(): void } {
+	const isMultiQuestion = params.length > 1;
+	const totalQuestions = params.length;
+
+	const questionStates: QuestionState[] = params.map((q) =>
+		createInitialState(buildItems(q.options.length), q.multiSelect ?? false),
+	);
+
+	const collectedAnswers: (SelectionResult | null)[] = new Array(totalQuestions).fill(null);
+	let currentIndex = 0;
+	let cachedLines: string[] | undefined;
+
+	function refresh(): void {
+		cachedLines = undefined;
+		tui.requestRender();
+	}
+
+	function goToQuestion(index: number): void {
+		currentIndex = index;
+		if (questionStates[currentIndex].confirmed) {
+			questionStates[currentIndex] = { ...questionStates[currentIndex], confirmed: false };
+		}
+		refresh();
+	}
+
 	function dispatch(action: Action): void {
-		state = reducer(state, action);
+		questionStates[currentIndex] = reducer(questionStates[currentIndex], action);
+		const state = questionStates[currentIndex];
+
 		if (state.confirmed) {
-			if (multiSelect) {
-				done(resolveMultiResult());
-			} else {
-				const selectedIndex = state.selectedIndex!;
-				const selectedItem = state.items[selectedIndex];
-				if (selectedItem?.type === "input") {
-					done({ answer: state.textInputValue, selectedIndex });
-				} else {
-					done({ answer: params.options[selectedIndex].label, selectedIndex });
-				}
+			collectedAnswers[currentIndex] = resolveResult(params[currentIndex], state);
+
+			if (currentIndex < totalQuestions - 1) {
+				currentIndex++;
+				refresh();
+				return;
 			}
+			done(collectedAnswers as SelectionResult[]);
 			return;
 		}
 		refresh();
 	}
 
-	function render(_width: number): string[] {
-		if (cachedLines) return cachedLines;
-
+	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
+		const multiSelect = q.multiSelect ?? false;
 		const lines: string[] = [];
-		lines.push(theme.bold(params.question));
-		lines.push("");
 
 		for (let i = 0; i < state.items.length; i++) {
 			const item = state.items[i];
@@ -117,7 +143,7 @@ export function createQuestionComponent(
 			const checked = multiSelect && state.selectedIndices.includes(i);
 
 			if (item.type === "option") {
-				const opt = params.options[i];
+				const opt = q.options[i];
 				const marker = multiSelect ? (checked ? "[x]" : "[ ]") : "";
 				const prefix = focused ? `  ${theme.fg("accent", "❯")} ` : "    ";
 				if (multiSelect) {
@@ -138,7 +164,6 @@ export function createQuestionComponent(
 				continue;
 			}
 
-			// "Other" input item
 			const otherMarker = multiSelect ? (checked ? "[x] " : "[ ] ") : "";
 			if (focused) {
 				lines.push(`  ${theme.fg("accent", "❯")} ${otherMarker}${theme.bold(OTHER_LABEL)}`);
@@ -157,14 +182,39 @@ export function createQuestionComponent(
 			}
 		}
 
+		return lines;
+	}
+
+	function render(_width: number): string[] {
+		if (cachedLines) return cachedLines;
+
+		const lines: string[] = [];
+		const q = params[currentIndex];
+		const state = questionStates[currentIndex];
+		const multiSelect = q.multiSelect ?? false;
+
+		if (isMultiQuestion) {
+			lines.push(theme.fg("dim", `Question ${currentIndex + 1} of ${totalQuestions}`));
+		}
+
+		lines.push(theme.bold(q.question));
 		lines.push("");
-		lines.push(theme.fg("dim", multiSelect ? HELP_MULTI : HELP_SINGLE));
+
+		lines.push(...renderQuestionLines(q, state));
+
+		lines.push("");
+		let helpText = multiSelect ? HELP_MULTI : HELP_SINGLE;
+		if (isMultiQuestion && currentIndex > 0) {
+			helpText = HELP_BACK + helpText;
+		}
+		lines.push(theme.fg("dim", helpText));
 
 		cachedLines = lines;
 		return lines;
 	}
 
 	function handleInput(data: string): void {
+		const state = questionStates[currentIndex];
 		const focusedItem = state.items[state.highlightedIndex];
 		const inputFocused = !state.isSubmitFocused && focusedItem?.type === "input";
 
@@ -174,6 +224,13 @@ export function createQuestionComponent(
 				return;
 			}
 			done(null);
+			return;
+		}
+
+		if (isMultiQuestion && matchesKey(data, Key.left) && !inputFocused) {
+			if (currentIndex > 0) {
+				goToQuestion(currentIndex - 1);
+			}
 			return;
 		}
 
@@ -190,7 +247,7 @@ export function createQuestionComponent(
 			return;
 		}
 
-		if (multiSelect && matchesKey(data, Key.space)) {
+		if (params[currentIndex].multiSelect && matchesKey(data, Key.space)) {
 			dispatch({ type: "toggleSelection" });
 			return;
 		}

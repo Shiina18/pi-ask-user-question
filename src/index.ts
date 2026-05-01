@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createQuestionComponent } from "./component.js";
+import { createQuestionComponent, type SelectionResult } from "./component.js";
 import { formatDetails, formatResult } from "./formatter.js";
 import { AskUserQuestionParams } from "./schema.js";
 
@@ -21,25 +21,16 @@ export default function (pi: ExtensionAPI): void {
 		parameters: AskUserQuestionParams,
 
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const q = params.questions[0];
-			const multiSelect = q.multiSelect ?? false;
+			const questions = params.questions;
 
-			const result = await ctx.ui.custom<{
-				answer: string;
-				selectedIndex: number;
-				answers?: string[];
-				selectedIndices?: number[];
-			} | null>((tui, theme, kb, done) => {
+			const results = await ctx.ui.custom<SelectionResult[] | null>((tui, theme, kb, done) => {
 				return createQuestionComponent(
-					{
+					questions.map((q) => ({
 						question: q.question,
 						header: q.header,
-						options: q.options.map((o) => ({
-							label: o.label,
-							description: o.description,
-						})),
-						multiSelect,
-					},
+						options: q.options.map((o) => ({ label: o.label, description: o.description })),
+						multiSelect: q.multiSelect ?? false,
+					})),
 					theme,
 					kb,
 					tui,
@@ -47,19 +38,25 @@ export default function (pi: ExtensionAPI): void {
 				);
 			});
 
-			if (!result) {
+			if (!results) {
 				throw new Error("User cancelled");
 			}
 
-			const text = formatResult({ [q.question]: result.answer });
-			const details = formatDetails({ [q.question]: result.answer }, [
-				{
+			const answersMap: Record<string, string> = {};
+			for (let i = 0; i < questions.length; i++) {
+				answersMap[questions[i].question] = results[i].answer;
+			}
+
+			const text = formatResult(answersMap);
+			const details = formatDetails(
+				answersMap,
+				questions.map((q) => ({
 					question: q.question,
 					header: q.header,
 					options: q.options.map((o) => ({ label: o.label, description: o.description })),
-					multiSelect,
-				},
-			]);
+					multiSelect: q.multiSelect ?? false,
+				})),
+			);
 
 			return {
 				content: [{ type: "text" as const, text }],
