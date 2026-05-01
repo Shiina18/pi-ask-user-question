@@ -69,6 +69,8 @@ describe("render snapshot", () => {
 			"    <dim>Cybernetically enhanced web apps</dim>",
 			"    Other",
 			"    <dim>Type a custom answer</dim>",
+			"",
+			"<dim>Enter to select · ↑/↓ to navigate · Esc to cancel</dim>",
 		]);
 	});
 
@@ -91,6 +93,8 @@ describe("render snapshot", () => {
 			"    <dim>Classic look</dim>",
 			"    Other",
 			"    <dim>Type a custom answer</dim>",
+			"",
+			"<dim>Enter to select · ↑/↓ to navigate · Esc to cancel</dim>",
 		]);
 	});
 
@@ -108,6 +112,8 @@ describe("render snapshot", () => {
 			"    <muted>Proceed with the action</muted>",
 			"    Other",
 			"    <dim>Type a custom answer</dim>",
+			"",
+			"<dim>Enter to select · ↑/↓ to navigate · Esc to cancel</dim>",
 		]);
 	});
 
@@ -232,7 +238,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("\x1b[A"); // up → navigates away
 
 		const lines = comp.render(80);
-		expect(lines.length).toBe(10); // question + blank + 3 options * 2 + Other * 2
+		expect(lines.length).toBe(12); // question + blank + 3 options * 2 + Other * 2 + help footer
 		expect(lines[8]).toBe("    Other");
 		expect(lines[9]).toBe("    <dim>Type a custom answer</dim>");
 

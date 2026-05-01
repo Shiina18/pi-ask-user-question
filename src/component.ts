@@ -23,6 +23,7 @@ export interface SelectionResult {
 const OTHER_LABEL = "Other";
 const OTHER_DESCRIPTION = "Type a custom answer";
 const CURSOR = "▌";
+const HELP_TEXT = "Enter to select · ↑/↓ to navigate · Esc to cancel";
 
 const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
@@ -101,6 +102,9 @@ export function createQuestionComponent(
 				lines.push(`    ${theme.fg("dim", OTHER_DESCRIPTION)}`);
 			}
 		}
+
+		lines.push("");
+		lines.push(theme.fg("dim", HELP_TEXT));
 
 		cachedLines = lines;
 		return lines;
