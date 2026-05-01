@@ -38,10 +38,12 @@ export const AskUserQuestionParams = Type.Object(
 							description: "The available choices (2-4 options).",
 						},
 					),
-					multiSelect: Type.Boolean({
-						default: false,
-						description: "Set to true to allow the user to select multiple options.",
-					}),
+					multiSelect: Type.Optional(
+						Type.Boolean({
+							default: false,
+							description: "Set to true to allow the user to select multiple options.",
+						}),
+					),
 				},
 				{ additionalProperties: false },
 			),

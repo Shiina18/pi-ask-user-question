@@ -21,10 +21,13 @@ export default function (pi: ExtensionAPI): void {
 
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const q = params.questions[0];
+			const multiSelect = q.multiSelect ?? false;
 
 			const result = await ctx.ui.custom<{
 				answer: string;
 				selectedIndex: number;
+				answers?: string[];
+				selectedIndices?: number[];
 			} | null>((tui, theme, kb, done) => {
 				return createQuestionComponent(
 					{
@@ -34,6 +37,7 @@ export default function (pi: ExtensionAPI): void {
 							label: o.label,
 							description: o.description,
 						})),
+						multiSelect,
 					},
 					theme,
 					kb,
@@ -52,7 +56,7 @@ export default function (pi: ExtensionAPI): void {
 					question: q.question,
 					header: q.header,
 					options: q.options.map((o) => ({ label: o.label, description: o.description })),
-					multiSelect: q.multiSelect ?? false,
+					multiSelect,
 				},
 			]);
 
