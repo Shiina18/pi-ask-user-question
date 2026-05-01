@@ -12,7 +12,7 @@ export const AskUserQuestionParams = Type.Object(
 					header: Type.String({
 						maxLength: 12,
 						description:
-							"Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.",
+							"Very short label displayed as a chip/tag. Must be 12 characters or fewer. Examples: 'Testing', 'Library', 'Auth'.",
 					}),
 					options: Type.Array(
 						Type.Object(

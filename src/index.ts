@@ -14,6 +14,7 @@ export default function (pi: ExtensionAPI): void {
 		promptGuidelines: [
 			"Use ask_user_question when the user's intent is ambiguous, a decision requires explicit user input, or multiple valid approaches exist.",
 			"Ask 1-4 clear, specific questions per call. Each question must end with a question mark.",
+			"Keep each header at 12 characters or fewer. Prefer a short noun like 'Testing', 'Library', or 'Auth'.",
 			"Provide 2-4 distinct options per question. The system adds an 'Other' freeform option automatically — do not include one yourself.",
 			"Before calling, gather context with other tools and frame the question so the user can make an informed choice.",
 		],
