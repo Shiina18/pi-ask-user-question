@@ -70,15 +70,15 @@ Current visual rules:
 - Single-question multi-select pages also render a trailing `Submit` tab.
 - The active tab uses selected background styling and text foreground styling.
 - Answered question tabs and ready submit tabs show `[x]`; unanswered or not-ready tabs show `[ ]`.
-- Inactive answered tabs use success styling; inactive unanswered tabs use dim styling.
+- Inactive answered tabs and ready submit tabs use success styling; inactive unanswered tabs use dim styling.
 - Header tabs include leading padding before the box marker and trailing padding inside the selected background.
 - The question text is rendered through the same `Text(theme.bold(question))` path used by the reference implementation.
 - Every selectable option row is numbered, and the number prefix uses dim styling.
-- The focus marker is at the left edge of the component line and uses success styling.
+- The focus marker is at the left edge of the component line and uses accent styling.
 - The custom input row displays `Type something`; it does not display `Other`.
 - `Type something` is dim text, not a highlighted background.
-- Option descriptions are dim when unfocused and success-styled when focused.
-- Selected or checked options use success styling for the checkbox/label/content and description; the number prefix remains dim.
+- Option descriptions are dim when unfocused and accent-styled when focused or selected.
+- Selected or checked options use accent styling for the checkbox/label/content and description; the number prefix remains dim.
 - Description text is indented to align with the option content column.
 
 ## Single Question

@@ -89,8 +89,8 @@ describe("render snapshot", () => {
 			"",
 			"<b>Which framework should we use?</b>",
 			"",
-			"<success>❯</success> <dim>1. </dim><success><b>React</b></success>",
-			"     <success>A JavaScript library for building UIs</success>",
+			"<accent>❯</accent> <dim>1. </dim><accent><b>React</b></accent>",
+			"     <accent>A JavaScript library for building UIs</accent>",
 			"  <dim>2. </dim>Vue",
 			"     <dim>The progressive JavaScript framework</dim>",
 			"  <dim>3. </dim>Svelte",
@@ -118,8 +118,8 @@ describe("render snapshot", () => {
 			"",
 			"<b>Dark mode or light mode?</b>",
 			"",
-			"<success>❯</success> <dim>1. </dim><success><b>Dark</b></success>",
-			"     <success>Easy on the eyes</success>",
+			"<accent>❯</accent> <dim>1. </dim><accent><b>Dark</b></accent>",
+			"     <accent>Easy on the eyes</accent>",
 			"  <dim>2. </dim>Light",
 			"     <dim>Classic look</dim>",
 			"  <dim>3. </dim><dim>Type something</dim>",
@@ -142,8 +142,8 @@ describe("render snapshot", () => {
 			"",
 			"<b>Continue?</b>",
 			"",
-			"<success>❯</success> <dim>1. </dim><success><b>Yes</b></success>",
-			"     <success>Proceed with the action</success>",
+			"<accent>❯</accent> <dim>1. </dim><accent><b>Yes</b></accent>",
+			"     <accent>Proceed with the action</accent>",
 			"  <dim>2. </dim><dim>Type something</dim>",
 			"",
 			"<dim>Enter/Space to select · ↑/↓ to navigate · Esc to cancel</dim>",
@@ -158,9 +158,7 @@ describe("render snapshot", () => {
 		const lines = comp.render(80);
 
 		// Other focused: shows an inline editable row instead of a separate label/description pair.
-		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success><inv>T</inv><dim>ype something</dim></success>",
-		);
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><inv>T</inv><dim>ype something</dim></accent>");
 	});
 });
 
@@ -174,7 +172,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("i"); // type
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<success>❯</success> <dim>4. </dim><success><b>hi▌</b></success>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>hi▌</b></accent>");
 	});
 
 	it("returns typed text as answer on Enter", () => {
@@ -216,9 +214,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("4");
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success><inv>T</inv><dim>ype something</dim></success>",
-		);
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><inv>T</inv><dim>ype something</dim></accent>");
 		expect(captured).toBeUndefined();
 	});
 
@@ -234,9 +230,7 @@ describe("freeform input on Other", () => {
 
 		expect(captured).toBeUndefined();
 		const lines = comp.render(80);
-		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success><inv>T</inv><dim>ype something</dim></success>",
-		);
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><inv>T</inv><dim>ype something</dim></accent>");
 	});
 
 	it("clears text on Escape when Other has text, then Escape cancels", () => {
@@ -251,9 +245,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("\x1b"); // Escape → clears text
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success><inv>T</inv><dim>ype something</dim></success>",
-		); // text cleared, placeholder remains
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><inv>T</inv><dim>ype something</dim></accent>"); // text cleared, placeholder remains
 		expect(captured).toBeUndefined();
 
 		comp.handleInput("\x1b");
@@ -274,7 +266,7 @@ describe("freeform input on Other", () => {
 
 		comp.handleInput("\x1b[B"); // down → returns to Other
 		const returnedLines = comp.render(80);
-		expect(returnedLines[10]).toBe("<success>❯</success> <dim>4. </dim><success><b>x▌</b></success>");
+		expect(returnedLines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>x▌</b></accent>");
 	});
 
 	it("backspace deletes last character", () => {
@@ -287,7 +279,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("\x7f"); // backspace
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<success>❯</success> <dim>4. </dim><success><b>a▌</b></success>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>a▌</b></accent>");
 	});
 
 	it("types digits while the custom input row is focused", () => {
@@ -296,7 +288,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("1"); // type, not select option 1
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<success>❯</success> <dim>4. </dim><success><b>1▌</b></success>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>1▌</b></accent>");
 	});
 });
 
@@ -320,8 +312,8 @@ describe("multi-select", () => {
 			"",
 			"<b>Which features do you want?</b>",
 			"",
-			"<success>❯</success> <dim>1. </dim><success>[ ] <b>Auth</b></success>",
-			"     <success>User authentication</success>",
+			"<accent>❯</accent> <dim>1. </dim><accent>[ ] <b>Auth</b></accent>",
+			"     <accent>User authentication</accent>",
 			"  <dim>2. </dim>[ ] Cache",
 			"     <dim>Response caching</dim>",
 			"  <dim>3. </dim>[ ] Logger",
@@ -338,12 +330,12 @@ describe("multi-select", () => {
 		comp.handleInput(" "); // toggle first item on
 
 		const lines = comp.render(80);
-		expect(lines[4]).toBe("<success>❯</success> <dim>1. </dim><success>[x] <b>Auth</b></success>");
-		expect(lines[5]).toBe("     <success>User authentication</success>");
+		expect(lines[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[x] <b>Auth</b></accent>");
+		expect(lines[5]).toBe("     <accent>User authentication</accent>");
 
 		comp.handleInput(" "); // toggle first item off
 		const lines2 = comp.render(80);
-		expect(lines2[4]).toBe("<success>❯</success> <dim>1. </dim><success>[ ] <b>Auth</b></success>");
+		expect(lines2[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[ ] <b>Auth</b></accent>");
 	});
 
 	it("toggles selection with Enter while focused on an option", () => {
@@ -351,7 +343,7 @@ describe("multi-select", () => {
 		comp.handleInput("\r"); // Enter toggles Auth in multi-select mode
 
 		const lines = comp.render(80);
-		expect(lines[4]).toBe("<success>❯</success> <dim>1. </dim><success>[x] <b>Auth</b></success>");
+		expect(lines[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[x] <b>Auth</b></accent>");
 	});
 
 	it("toggles a numbered multi-select option directly", () => {
@@ -359,7 +351,7 @@ describe("multi-select", () => {
 		comp.handleInput("2");
 
 		const lines = comp.render(80);
-		expect(lines[6]).toBe("<success>❯</success> <dim>2. </dim><success>[x] <b>Cache</b></success>");
+		expect(lines[6]).toBe("<accent>❯</accent> <dim>2. </dim><accent>[x] <b>Cache</b></accent>");
 	});
 
 	it("selects multiple items and confirms from Submit with Enter", () => {
@@ -411,7 +403,7 @@ describe("multi-select", () => {
 		expect(lines[0]).toBe(
 			"<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <bg:selectedBg><text>  [ ] Submit </text></bg:selectedBg>",
 		);
-		expect(lines[11]).toBe("<success>❯</success>    <success><b>Submit</b></success>");
+		expect(lines[11]).toBe("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 	});
 
 	it("allows single-question multi-select to navigate to Submit with horizontal keys", () => {
@@ -422,16 +414,16 @@ describe("multi-select", () => {
 		expect(lines[0]).toBe(
 			"<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <bg:selectedBg><text>  [ ] Submit </text></bg:selectedBg>",
 		);
-		expect(lines[11]).toBe("<success>❯</success>    <success><b>Submit</b></success>");
+		expect(lines[11]).toBe("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 
 		comp.handleInput("\x1b[D"); // Left arrow returns to the question
 		lines = comp.render(80);
 		expect(lines[0]).toBe("<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <dim>  [ ] Submit </dim>");
-		expect(lines[4]).toBe("<success>❯</success> <dim>1. </dim><success>[ ] <b>Auth</b></success>");
+		expect(lines[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[ ] <b>Auth</b></accent>");
 
 		comp.handleInput("\t"); // Tab also moves to Submit
 		lines = comp.render(80);
-		expect(lines[11]).toBe("<success>❯</success>    <success><b>Submit</b></success>");
+		expect(lines[11]).toBe("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 	});
 
 	it("auto-selects Other with text in multi-select and appends it after regular options", () => {
@@ -450,7 +442,7 @@ describe("multi-select", () => {
 		comp.handleInput("m"); // type
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<success>❯</success> <dim>4. </dim><success>[x] <b>custom▌</b></success>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>custom▌</b></accent>");
 
 		comp.handleInput("\x1b[A"); // up to Logger
 		comp.handleInput(" "); // toggle Logger
@@ -483,7 +475,7 @@ describe("multi-select", () => {
 		comp.handleInput("e");
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<success>❯</success> <dim>4. </dim><success>[x] <b>hi there▌</b></success>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>hi there▌</b></accent>");
 	});
 
 	it("auto-clears Other selection when text is deleted", () => {
@@ -496,7 +488,7 @@ describe("multi-select", () => {
 
 		const lines = comp.render(80);
 		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success>[ ] <inv>T</inv><dim>ype something</dim></success>",
+			"<accent>❯</accent> <dim>4. </dim><accent>[ ] <inv>T</inv><dim>ype something</dim></accent>",
 		);
 	});
 
@@ -509,7 +501,7 @@ describe("multi-select", () => {
 
 		const lines = comp.render(80);
 		expect(lines[10]).toBe(
-			"<success>❯</success> <dim>4. </dim><success>[ ] <inv>T</inv><dim>ype something</dim></success>",
+			"<accent>❯</accent> <dim>4. </dim><accent>[ ] <inv>T</inv><dim>ype something</dim></accent>",
 		);
 	});
 
@@ -529,8 +521,8 @@ describe("multi-select", () => {
 		comp.handleInput("\x1b[B"); // down to Cache
 
 		const lines = comp.render(80);
-		expect(lines[4]).toBe("  <dim>1. </dim><success>[x] Auth</success>");
-		expect(lines[6]).toBe("<success>❯</success> <dim>2. </dim><success>[ ] <b>Cache</b></success>");
+		expect(lines[4]).toBe("  <dim>1. </dim><accent>[x] Auth</accent>");
+		expect(lines[6]).toBe("<accent>❯</accent> <dim>2. </dim><accent>[ ] <b>Cache</b></accent>");
 	});
 });
 
@@ -695,7 +687,7 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[B"); // down to Other
 		comp.handleInput("\x1b[B"); // down to Next
 		let lines = comp.render(80);
-		expect(lines).toContain("<success>❯</success>    <success><b>Next</b></success>");
+		expect(lines).toContain("<accent>❯</accent>    <accent><b>Next</b></accent>");
 
 		comp.handleInput("\r"); // continue even with nothing selected
 		lines = comp.render(80);
@@ -707,7 +699,7 @@ describe("multi-question navigation", () => {
 		singleFinal.handleInput("\x1b[B"); // down to Other
 		singleFinal.handleInput("\x1b[B"); // down to Submit
 		const finalLines = singleFinal.render(80);
-		expect(finalLines).toContain("<success>❯</success>    <success><b>Submit</b></success>");
+		expect(finalLines).toContain("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 	});
 
 	it("goes back to previous question with Left arrow", () => {
@@ -735,9 +727,9 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[D"); // return to Q1
 
 		const lines = comp.render(80);
-		expect(lines).toContain("<success>❯</success> <dim>1. </dim><success><b>TypeScript</b></success>");
-		expect(lines).toContain("  <dim>2. </dim><success>Python</success> <success>✓</success>");
-		expect(lines).toContain("     <success>General purpose</success>");
+		expect(lines).toContain("<accent>❯</accent> <dim>1. </dim><accent><b>TypeScript</b></accent>");
+		expect(lines).toContain("  <dim>2. </dim><accent>Python</accent> <accent>✓</accent>");
+		expect(lines).toContain("     <accent>General purpose</accent>");
 	});
 
 	it("resets focus to the first option when navigating back to an answered question", () => {
@@ -751,8 +743,8 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[D"); // return to Q1 again
 
 		const lines = comp.render(80);
-		expect(lines).toContain("<success>❯</success> <dim>1. </dim><success><b>TypeScript</b></success>");
-		expect(lines).toContain("  <dim>2. </dim><success>Python</success> <success>✓</success>");
+		expect(lines).toContain("<accent>❯</accent> <dim>1. </dim><accent><b>TypeScript</b></accent>");
+		expect(lines).toContain("  <dim>2. </dim><accent>Python</accent> <accent>✓</accent>");
 	});
 
 	it("does not return focus to a selected custom input row when navigating between questions", () => {
@@ -767,8 +759,8 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[D"); // return to Q1
 
 		const lines = comp.render(80);
-		expect(lines).toContain("<success>❯</success> <dim>1. </dim><success><b>TypeScript</b></success>");
-		expect(lines).toContain("  <dim>3. </dim><success>cus</success> <success>✓</success>");
+		expect(lines).toContain("<accent>❯</accent> <dim>1. </dim><accent><b>TypeScript</b></accent>");
+		expect(lines).toContain("  <dim>3. </dim><accent>cus</accent> <accent>✓</accent>");
 
 		comp.handleInput("\x1b[C"); // right navigation should work because input is not focused
 		expect(comp.render(80)[2]).toBe("<b>Which framework?</b>");

@@ -263,18 +263,18 @@ export function createQuestionComponent(
 			const checked = multiSelect && state.selectedIndices.includes(i);
 			const selected = !multiSelect && state.selectedIndex === i;
 			const chosen = checked || selected;
-			const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
+			const selectedMarker = selected ? ` ${theme.fg("accent", SELECTED_MARKER)}` : "";
 			const checkMarker = multiSelect ? `${checked ? "[x]" : "[ ]"} ` : "";
-			const prefix = focused ? `${theme.fg("success", FOCUS_MARKER)} ` : "  ";
+			const prefix = focused ? `${theme.fg("accent", FOCUS_MARKER)} ` : "  ";
 			const numberPrefix = theme.fg("dim", `${i + 1}. `);
 
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const descriptionPrefix = "     ";
-				const descriptionStyle = chosen || focused ? "success" : "dim";
+				const descriptionStyle = chosen || focused ? "accent" : "dim";
 				const label = focused ? theme.bold(opt.label) : opt.label;
 				const rowRest = `${checkMarker}${label}`;
-				const row = `${numberPrefix}${chosen || focused ? theme.fg("success", rowRest) : rowRest}`;
+				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
 				if (focused) {
 					lines.push(`${prefix}${row}${selectedMarker}`);
 					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
@@ -290,12 +290,12 @@ export function createQuestionComponent(
 				const inputText = hasInput ? `${state.textInputValue}${CURSOR}` : renderPlaceholderWithCursor(theme);
 				const label = hasInput ? theme.bold(inputText) : inputText;
 				const rowRest = `${checkMarker}${label}`;
-				const row = `${numberPrefix}${chosen || focused ? theme.fg("success", rowRest) : rowRest}`;
+				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
 			} else {
 				const inputText = state.textInputValue.length > 0 ? state.textInputValue : theme.fg("dim", OTHER_PLACEHOLDER);
 				const rowRest = `${checkMarker}${inputText}`;
-				const row = `${numberPrefix}${chosen ? theme.fg("success", rowRest) : rowRest}`;
+				const row = `${numberPrefix}${chosen ? theme.fg("accent", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
 			}
 		}
@@ -303,7 +303,7 @@ export function createQuestionComponent(
 		if (multiSelect) {
 			const confirmLabel = getMultiSelectConfirmLabel();
 			if (state.isSubmitFocused) {
-				lines.push(`${theme.fg("success", FOCUS_MARKER)}    ${theme.fg("success", theme.bold(confirmLabel))}`);
+				lines.push(`${theme.fg("accent", FOCUS_MARKER)}    ${theme.fg("accent", theme.bold(confirmLabel))}`);
 			} else {
 				lines.push(`     ${confirmLabel}`);
 			}
@@ -337,13 +337,13 @@ export function createQuestionComponent(
 			lines.push("");
 		}
 
-		const submitPrefix = reviewFocusedIndex === 0 ? `  ${theme.fg("success", "❯")} ` : "    ";
-		const cancelPrefix = reviewFocusedIndex === 1 ? `  ${theme.fg("success", "❯")} ` : "    ";
+		const submitPrefix = reviewFocusedIndex === 0 ? `  ${theme.fg("accent", "❯")} ` : "    ";
+		const cancelPrefix = reviewFocusedIndex === 1 ? `  ${theme.fg("accent", "❯")} ` : "    ";
 		lines.push(
-			`${submitPrefix}${reviewFocusedIndex === 0 ? theme.fg("success", theme.bold(SUBMIT_ANSWERS_LABEL)) : SUBMIT_ANSWERS_LABEL}`,
+			`${submitPrefix}${reviewFocusedIndex === 0 ? theme.fg("accent", theme.bold(SUBMIT_ANSWERS_LABEL)) : SUBMIT_ANSWERS_LABEL}`,
 		);
 		lines.push(
-			`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.fg("success", theme.bold(CANCEL_LABEL)) : CANCEL_LABEL}`,
+			`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.fg("accent", theme.bold(CANCEL_LABEL)) : CANCEL_LABEL}`,
 		);
 		lines.push("");
 		lines.push(theme.fg("dim", "Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
