@@ -4,8 +4,9 @@
   "description": "Pi coding agent extension — interactive user question tool",
   "main": "src/index.ts",
   "scripts": {
-    "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\"",
+    "check": "biome check --write --error-on-warnings . && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepare": "husky"
   },
   "keywords": [],
@@ -13,11 +14,15 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
+    "@mariozechner/pi-tui": "^0.71.0",
+    "@types/node": "^25.6.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
-    "prettier": "^3.8.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
-  "lint-staged": {
-    "src/**/*.ts": "prettier --write"
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "^0.71.0",
+    "typebox": "^1.1.35"
   }
 }
