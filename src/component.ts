@@ -5,6 +5,7 @@ import {
 	Key,
 	type KeybindingsManager,
 	matchesKey,
+	Text,
 	type TUI,
 } from "@mariozechner/pi-tui";
 import { type Action, createInitialState, type QuestionItem, type QuestionState, reducer } from "./state.js";
@@ -40,8 +41,8 @@ const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
 const KB_CONFIRM = "tui.select.confirm" as const;
 
-function boldText(theme: Theme, text: string): string {
-	return `\x1b[1m${theme.bold(text)}\x1b[22m`;
+function renderQuestionText(theme: Theme, text: string, width: number): string {
+	return new Text(theme.bold(text), 0, 0).render(width)[0]?.trimEnd() ?? "";
 }
 
 function renderPlaceholderWithCursor(theme: Theme): string {
@@ -111,6 +112,7 @@ export function createQuestionComponent(
 ): Component & { dispose?(): void } {
 	const isMultiQuestion = params.length > 1;
 	const totalQuestions = params.length;
+	const isSingleQuestionMultiSelect = totalQuestions === 1 && (params[0].multiSelect ?? false);
 
 	const questionStates: QuestionState[] = params.map((q) =>
 		createInitialState(buildItems(q.options.length), q.multiSelect ?? false),
@@ -133,15 +135,13 @@ export function createQuestionComponent(
 			return;
 		}
 		const state = questionStates[currentIndex];
-		if (!state.multiSelect && state.selectedIndex !== null) {
+		if (state.highlightedIndex !== 0 || state.isSubmitFocused || state.confirmed) {
 			questionStates[currentIndex] = {
 				...state,
-				highlightedIndex: state.selectedIndex,
+				highlightedIndex: 0,
 				isSubmitFocused: false,
 				confirmed: false,
 			};
-		} else if (state.confirmed) {
-			questionStates[currentIndex] = { ...state, confirmed: false };
 		}
 		refresh();
 	}
@@ -157,6 +157,13 @@ export function createQuestionComponent(
 			goToQuestion(currentIndex + 1);
 		} else if (isMultiQuestion) {
 			goToReview();
+		} else if (isSingleQuestionMultiSelect) {
+			questionStates[currentIndex] = {
+				...questionStates[currentIndex],
+				isSubmitFocused: true,
+				confirmed: false,
+			};
+			refresh();
 		}
 	}
 
@@ -189,8 +196,7 @@ export function createQuestionComponent(
 			recordAnswer(currentIndex);
 
 			if (currentIndex < totalQuestions - 1) {
-				currentIndex++;
-				refresh();
+				goToQuestion(currentIndex + 1);
 				return;
 			}
 
@@ -219,13 +225,32 @@ export function createQuestionComponent(
 	}
 
 	function renderHeaderTabs(): string {
-		return params
-			.map((q, index) => {
-				const tab = `□ ${q.header}`;
-				if (index === currentIndex) return theme.bg("selectedBg", tab);
-				return theme.fg("dim", tab);
-			})
-			.join(" ");
+		const questionTabs = params.map((q, index) => {
+			const answered = collectedAnswers[index] !== null;
+			const box = answered ? "[x]" : "[ ]";
+			const tab = `  ${box} ${q.header} `;
+			if (index === currentIndex) return theme.bg("selectedBg", theme.fg("text", tab));
+			return theme.fg(answered ? "success" : "dim", tab);
+		});
+		const showSubmitTab = isMultiQuestion || isSingleQuestionMultiSelect;
+		if (!showSubmitTab) return questionTabs.join(" ");
+
+		const activeQuestionSubmit =
+			isMultiQuestion &&
+			currentIndex === totalQuestions - 1 &&
+			(params[currentIndex].multiSelect ?? false) &&
+			questionStates[currentIndex].isSubmitFocused;
+		const activeSubmit =
+			currentIndex === totalQuestions ||
+			(!isMultiQuestion && questionStates[0].isSubmitFocused) ||
+			activeQuestionSubmit;
+		const readyToSubmit = hasAllAnswers();
+		const submitBox = readyToSubmit ? "[x]" : "[ ]";
+		const submitTab = `  ${submitBox} ${SUBMIT_LABEL} `;
+		const styledSubmit = activeSubmit
+			? theme.bg("selectedBg", theme.fg("text", submitTab))
+			: theme.fg(readyToSubmit ? "success" : "dim", submitTab);
+		return [...questionTabs, styledSubmit].join(" ");
 	}
 
 	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
@@ -240,21 +265,20 @@ export function createQuestionComponent(
 			const chosen = checked || selected;
 			const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
 			const checkMarker = multiSelect ? `${checked ? "[x]" : "[ ]"} ` : "";
-			const prefix = focused ? `${theme.fg("accent", FOCUS_MARKER)} ` : "  ";
-			const numberPrefix = `${i + 1}. `;
+			const prefix = focused ? `${theme.fg("success", FOCUS_MARKER)} ` : "  ";
+			const numberPrefix = theme.fg("dim", `${i + 1}. `);
 
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const descriptionPrefix = "     ";
-				const descriptionStyle = chosen ? "success" : focused ? "muted" : "dim";
+				const descriptionStyle = chosen || focused ? "success" : "dim";
+				const label = focused ? theme.bold(opt.label) : opt.label;
+				const rowRest = `${checkMarker}${label}`;
+				const row = `${numberPrefix}${chosen || focused ? theme.fg("success", rowRest) : rowRest}`;
 				if (focused) {
-					const rowContent = `${numberPrefix}${checkMarker}${theme.bold(opt.label)}`;
-					const row = chosen ? theme.fg("success", rowContent) : rowContent;
 					lines.push(`${prefix}${row}${selectedMarker}`);
 					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
 				} else {
-					const rowContent = `${numberPrefix}${checkMarker}${opt.label}`;
-					const row = chosen ? theme.fg("success", rowContent) : rowContent;
 					lines.push(`${prefix}${row}${selectedMarker}`);
 					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
 				}
@@ -265,13 +289,13 @@ export function createQuestionComponent(
 				const hasInput = state.textInputValue.length > 0;
 				const inputText = hasInput ? `${state.textInputValue}${CURSOR}` : renderPlaceholderWithCursor(theme);
 				const label = hasInput ? theme.bold(inputText) : inputText;
-				const rowContent = `${numberPrefix}${checkMarker}${label}`;
-				const row = chosen ? theme.fg("success", rowContent) : rowContent;
+				const rowRest = `${checkMarker}${label}`;
+				const row = `${numberPrefix}${chosen || focused ? theme.fg("success", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
 			} else {
 				const inputText = state.textInputValue.length > 0 ? state.textInputValue : theme.fg("dim", OTHER_PLACEHOLDER);
-				const rowContent = `${numberPrefix}${checkMarker}${inputText}`;
-				const row = chosen ? theme.fg("success", rowContent) : rowContent;
+				const rowRest = `${checkMarker}${inputText}`;
+				const row = `${numberPrefix}${chosen ? theme.fg("success", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
 			}
 		}
@@ -279,7 +303,7 @@ export function createQuestionComponent(
 		if (multiSelect) {
 			const confirmLabel = getMultiSelectConfirmLabel();
 			if (state.isSubmitFocused) {
-				lines.push(`${theme.fg("accent", FOCUS_MARKER)}    ${theme.bold(confirmLabel)}`);
+				lines.push(`${theme.fg("success", FOCUS_MARKER)}    ${theme.fg("success", theme.bold(confirmLabel))}`);
 			} else {
 				lines.push(`     ${confirmLabel}`);
 			}
@@ -292,7 +316,8 @@ export function createQuestionComponent(
 		const lines: string[] = [];
 		const allAnswered = hasAllAnswers();
 
-		lines.push(theme.fg("dim", `Question ${totalQuestions + 1} of ${totalQuestions + 1}`));
+		lines.push(renderHeaderTabs());
+		lines.push("");
 		lines.push(theme.bold("Review your answers"));
 		lines.push("");
 
@@ -312,10 +337,14 @@ export function createQuestionComponent(
 			lines.push("");
 		}
 
-		const submitPrefix = reviewFocusedIndex === 0 ? `  ${theme.fg("accent", "❯")} ` : "    ";
-		const cancelPrefix = reviewFocusedIndex === 1 ? `  ${theme.fg("accent", "❯")} ` : "    ";
-		lines.push(`${submitPrefix}${reviewFocusedIndex === 0 ? theme.bold(SUBMIT_ANSWERS_LABEL) : SUBMIT_ANSWERS_LABEL}`);
-		lines.push(`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.bold(CANCEL_LABEL) : CANCEL_LABEL}`);
+		const submitPrefix = reviewFocusedIndex === 0 ? `  ${theme.fg("success", "❯")} ` : "    ";
+		const cancelPrefix = reviewFocusedIndex === 1 ? `  ${theme.fg("success", "❯")} ` : "    ";
+		lines.push(
+			`${submitPrefix}${reviewFocusedIndex === 0 ? theme.fg("success", theme.bold(SUBMIT_ANSWERS_LABEL)) : SUBMIT_ANSWERS_LABEL}`,
+		);
+		lines.push(
+			`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.fg("success", theme.bold(CANCEL_LABEL)) : CANCEL_LABEL}`,
+		);
 		lines.push("");
 		lines.push(theme.fg("dim", "Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
 
@@ -337,13 +366,13 @@ export function createQuestionComponent(
 		lines.push(renderHeaderTabs());
 		lines.push("");
 
-		lines.push(boldText(theme, q.question));
+		lines.push(renderQuestionText(theme, q.question, _width));
 		lines.push("");
 
 		lines.push(...renderQuestionLines(q, state));
 
 		lines.push("");
-		const helpText = isMultiQuestion ? HELP_MULTI_QUESTION : HELP_SINGLE;
+		const helpText = isMultiQuestion || isSingleQuestionMultiSelect ? HELP_MULTI_QUESTION : HELP_SINGLE;
 		lines.push(theme.fg("dim", helpText));
 
 		cachedLines = lines;
@@ -392,21 +421,36 @@ export function createQuestionComponent(
 			return;
 		}
 
-		if (isMultiQuestion && matchesKey(data, Key.left) && !inputFocused) {
+		if ((isMultiQuestion || isSingleQuestionMultiSelect) && matchesKey(data, Key.left) && !inputFocused) {
+			if (isSingleQuestionMultiSelect && state.isSubmitFocused) {
+				goToQuestion(currentIndex);
+				return;
+			}
 			if (currentIndex > 0) {
 				goToQuestion(currentIndex - 1);
 			}
 			return;
 		}
 
-		if (isMultiQuestion && matchesKey(data, Key.shift("tab")) && !inputFocused) {
+		if ((isMultiQuestion || isSingleQuestionMultiSelect) && matchesKey(data, Key.shift("tab")) && !inputFocused) {
+			if (isSingleQuestionMultiSelect && state.isSubmitFocused) {
+				goToQuestion(currentIndex);
+				return;
+			}
 			if (currentIndex > 0) {
 				goToQuestion(currentIndex - 1);
 			}
 			return;
 		}
 
-		if (isMultiQuestion && (matchesKey(data, Key.right) || matchesKey(data, Key.tab)) && !inputFocused) {
+		if (
+			(isMultiQuestion || isSingleQuestionMultiSelect) &&
+			(matchesKey(data, Key.right) || matchesKey(data, Key.tab)) &&
+			!inputFocused
+		) {
+			if (isSingleQuestionMultiSelect && state.isSubmitFocused) {
+				return;
+			}
 			goToNextQuestion();
 			return;
 		}

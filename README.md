@@ -32,7 +32,7 @@ The UI always adds one inline custom input row after the configured options. The
 Every question page uses the same top-to-bottom structure:
 
 ```text
-[HeaderA] [HeaderB]
+[ ] HeaderA  [ ] HeaderB
 
 Question text?
 
@@ -66,22 +66,33 @@ Current visual rules:
 
 - Every question page renders header tabs.
 - A single question renders one selected header tab.
-- Multiple questions render all tabs side by side. The active tab uses selected styling, inactive tabs use dim styling.
-- The question text is forced bold.
-- Every selectable option row is numbered.
-- The focus marker is at the left edge of the component line.
+- Multiple questions render all question tabs side by side, followed by a `Submit` tab.
+- Single-question multi-select pages also render a trailing `Submit` tab.
+- The active tab uses selected background styling and text foreground styling.
+- Answered question tabs and ready submit tabs show `[x]`; unanswered or not-ready tabs show `[ ]`.
+- Inactive answered tabs use success styling; inactive unanswered tabs use dim styling.
+- Header tabs include leading padding before the box marker and trailing padding inside the selected background.
+- The question text is rendered through the same `Text(theme.bold(question))` path used by the reference implementation.
+- Every selectable option row is numbered, and the number prefix uses dim styling.
+- The focus marker is at the left edge of the component line and uses success styling.
 - The custom input row displays `Type something`; it does not display `Other`.
 - `Type something` is dim text, not a highlighted background.
-- Option descriptions are dim when unfocused and muted/bold-adjacent when focused.
-- Selected or checked options use success styling for the whole option row, including the number, checkbox, label, and description.
+- Option descriptions are dim when unfocused and success-styled when focused.
+- Selected or checked options use success styling for the checkbox/label/content and description; the number prefix remains dim.
 - Description text is indented to align with the option content column.
 
 ## Single Question
 
-For a single question, both single-select and multi-select pages use this footer:
+For a single-question single-select page, the footer is:
 
 ```text
 Enter/Space to select · ↑/↓ to navigate · Esc to cancel
+```
+
+For a single-question multi-select page, the footer matches the multi-question navigation model because the page includes a `Submit` tab:
+
+```text
+Enter/Space to select · Tab/Arrow keys to navigate · Esc to cancel
 ```
 
 Single-select behavior:
@@ -95,6 +106,8 @@ Single-select behavior:
 Multi-select behavior:
 
 - `↑` / `↓` moves focus through configured options, the custom input row, and `Submit`.
+- `Tab` or `Right` moves focus from the question to `Submit`.
+- `Shift+Tab` or `Left` returns from `Submit` to the question.
 - `Enter` on a configured option toggles it.
 - `Enter` on `Submit` submits selected answers.
 - `Submit` does nothing when no answer is selected.
@@ -113,12 +126,13 @@ Navigation behavior:
 
 - `Tab` or `Right` moves to the next question. On the last question it opens review.
 - `Shift+Tab` or `Left` moves to the previous question.
+- Entering a question resets the focus cursor to the first option while preserving any recorded answer.
 - Left/right question navigation is disabled while the custom input row is focused, so typed text is not interrupted.
 - Single-select `Enter` or `Space` confirms the focused row and advances to the next question or review.
 - Multi-select `Submit` advances to the next question or review.
 - Multi-question navigation can move forward before every question has an answer; review warns when answers are missing.
 
-The review page is still separate from question pages. It shows collected answers plus:
+The review page is still separate from question pages. It uses the same header tab row with the `Submit` tab active, then shows collected answers plus:
 
 ```text
 Submit answers
@@ -126,6 +140,8 @@ Cancel
 
 Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel
 ```
+
+The review page does not render a synthetic progress line such as `Question 4 of 4`.
 
 ## Custom Input
 
