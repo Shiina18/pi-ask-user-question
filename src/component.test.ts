@@ -1,7 +1,7 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { matchesKey } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
-import { createQuestionComponent, type QuestionParams, type SelectionResult } from "./component.js";
+import { createQuestionComponent, type QuestionParams, type QuestionResult } from "./component.js";
 
 function mockTheme(): Theme {
 	return {
@@ -28,7 +28,7 @@ function mockTui() {
 
 type TestComponent = ReturnType<typeof createQuestionComponent> & { handleInput(data: string): void };
 
-type Done = (results: SelectionResult[] | null) => void;
+type Done = (results: QuestionResult[] | null) => void;
 
 function renderSnapshot(params: QuestionParams[]): { lines: string[]; result: unknown } {
 	const theme = mockTheme();
@@ -157,7 +157,7 @@ describe("freeform input on Other", () => {
 	});
 
 	it("returns typed text as answer on Enter", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([baseParams], (r) => {
 			captured = r;
 		});
@@ -294,7 +294,7 @@ describe("multi-select", () => {
 	});
 
 	it("selects multiple items and confirms from Submit with Enter", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([multiParams], (r) => {
 			captured = r;
 		});
@@ -343,7 +343,7 @@ describe("multi-select", () => {
 	});
 
 	it("auto-selects Other with text in multi-select and appends it after regular options", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([multiParams], (r) => {
 			captured = r;
 		});
@@ -477,7 +477,7 @@ describe("multi-question navigation", () => {
 	});
 
 	it("auto-advances after answering each question", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1, q2], (r) => {
 			captured = r;
 		});
@@ -493,7 +493,11 @@ describe("multi-question navigation", () => {
 		// Answer Q2
 		comp.handleInput("\r"); // select React
 
-		// Should have submitted
+		const reviewLines = comp.render(80);
+		expect(reviewLines[1]).toBe("<b>Review your answers</b>");
+		expect(captured).toBeNull();
+
+		comp.handleInput("\r"); // submit answers
 		expect(captured).toEqual([
 			{ answer: "TypeScript", selectedIndex: 0 },
 			{ answer: "React", selectedIndex: 0 },
@@ -501,7 +505,7 @@ describe("multi-question navigation", () => {
 	});
 
 	it("submits all answers after answering last question", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1, q2, q3], (r) => {
 			captured = r;
 		});
@@ -518,6 +522,11 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[B"); // down to Submit
 		comp.handleInput("\r"); // confirm
 
+		const reviewLines = comp.render(80);
+		expect(reviewLines[1]).toBe("<b>Review your answers</b>");
+		expect(captured).toBeNull();
+
+		comp.handleInput("\r"); // submit answers
 		expect(captured).toEqual([
 			{ answer: "TypeScript", selectedIndex: 0 },
 			{ answer: "React", selectedIndex: 0 },
@@ -528,6 +537,29 @@ describe("multi-question navigation", () => {
 				selectedIndices: [0, 1],
 			},
 		]);
+	});
+
+	it("shows Next for non-final multi-select confirmation and Submit on the last question", () => {
+		const comp = createComp([q3, q2], () => {});
+
+		// First question is multi-select and not final: confirmation row is Next.
+		comp.handleInput("\x1b[B"); // down to AWS
+		comp.handleInput("\x1b[B"); // down to Other
+		comp.handleInput("\x1b[B"); // down to Next
+		let lines = comp.render(80);
+		expect(lines).toContain("  <accent>❯</accent> <b>Next</b>");
+
+		comp.handleInput("\r"); // continue even with nothing selected
+		lines = comp.render(80);
+		expect(lines[1]).toBe("<b>Which framework?</b>");
+
+		const singleFinal = createComp([q1, q3], () => {});
+		singleFinal.handleInput("\r"); // advance to final multi-select question
+		singleFinal.handleInput("\x1b[B"); // down to AWS
+		singleFinal.handleInput("\x1b[B"); // down to Other
+		singleFinal.handleInput("\x1b[B"); // down to Submit
+		const finalLines = singleFinal.render(80);
+		expect(finalLines).toContain("  <accent>❯</accent> <b>Submit</b>");
 	});
 
 	it("goes back to previous question with Left arrow", () => {
@@ -545,8 +577,108 @@ describe("multi-question navigation", () => {
 		expect(lines1[1]).toBe("<b>Which language?</b>");
 	});
 
+	it("shows the selected answer when returning to an answered single-select question", () => {
+		const comp = createComp([q1, q2], () => {});
+
+		comp.handleInput("\x1b[B"); // focus Python
+		comp.handleInput("\r"); // answer Q1 and advance
+		comp.handleInput("\x1b[D"); // return to Q1
+
+		const lines = comp.render(80);
+		expect(lines).toContain("  <accent>❯</accent> <success><b>Python</b></success> <success>✓</success>");
+		expect(lines).toContain("    <success>General purpose</success>");
+	});
+
+	it("focuses the selected answer when returning to an answered single-select question", () => {
+		const comp = createComp([q1, q2], () => {});
+
+		comp.handleInput("\x1b[B"); // focus Python
+		comp.handleInput("\r"); // answer Q1 and advance
+		comp.handleInput("\x1b[D"); // return to Q1
+		comp.handleInput("\x1b[A"); // browse away from the selected answer
+		comp.handleInput("\x1b[C"); // go to Q2
+		comp.handleInput("\x1b[D"); // return to Q1 again
+
+		const lines = comp.render(80);
+		expect(lines).toContain("  <accent>❯</accent> <success><b>Python</b></success> <success>✓</success>");
+		expect(lines).not.toContain("  <accent>❯</accent> <b>TypeScript</b>");
+	});
+
+	it("goes forward to later questions with Right arrow and Tab before answering", () => {
+		const comp = createComp([q1, q2, q3], () => {});
+
+		let lines = comp.render(80);
+		expect(lines[1]).toBe("<b>Which language?</b>");
+
+		comp.handleInput("\x1b[C"); // Q1 -> Q2
+		lines = comp.render(80);
+		expect(lines[1]).toBe("<b>Which framework?</b>");
+
+		comp.handleInput("\t"); // Q2 -> Q3
+		lines = comp.render(80);
+		expect(lines[1]).toBe("<b>Deploy target?</b>");
+	});
+
+	it("does not go forward beyond the last question", () => {
+		const comp = createComp([q1, q2], () => {});
+
+		comp.handleInput("\x1b[C");
+		comp.handleInput("\t");
+		const after = comp.render(80);
+
+		expect(after[1]).toBe("<b>Review your answers</b>");
+	});
+
+	it("shows a review warning instead of submitting incomplete answers from the last question", () => {
+		let captured: QuestionResult[] | null | undefined;
+		const comp = createComp([q1, q2, q3], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("\x1b[C"); // Q1 -> Q2, unanswered
+		comp.handleInput("\x1b[C"); // Q2 -> Q3, unanswered
+		comp.handleInput(" "); // select Vercel on Q3
+		comp.handleInput("\x1b[B"); // down to AWS
+		comp.handleInput("\x1b[B"); // down to Other
+		comp.handleInput("\x1b[B"); // down to Submit
+		comp.handleInput("\r"); // cannot submit because Q1 and Q2 are unanswered
+
+		const lines = comp.render(80);
+		expect(captured).toBeUndefined();
+		expect(lines[0]).toBe("<dim>Question 4 of 4</dim>");
+		expect(lines[1]).toBe("<b>Review your answers</b>");
+		expect(lines).toContain("<warning>You have not answered all questions</warning>");
+	});
+
+	it("keeps a multi-select answer when navigating away before pressing Next", () => {
+		let captured: QuestionResult[] | null = null;
+		const comp = createComp([q3, q1], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput(" "); // select Vercel on Q1
+		comp.handleInput("\t"); // leave the multi-select question without using Next
+		expect(comp.render(80)[1]).toBe("<b>Which language?</b>");
+
+		comp.handleInput("\r"); // answer Q2 and go to review
+		const reviewLines = comp.render(80);
+		expect(reviewLines[1]).toBe("<b>Review your answers</b>");
+		expect(reviewLines).toContain("    <success>Vercel</success>");
+
+		comp.handleInput("\r"); // submit answers
+		expect(captured).toEqual([
+			{
+				answer: "Vercel",
+				selectedIndex: 0,
+				answers: ["Vercel"],
+				selectedIndices: [0],
+			},
+			{ answer: "TypeScript", selectedIndex: 0 },
+		]);
+	});
+
 	it("re-answer previous question after going back", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1, q2], (r) => {
 			captured = r;
 		});
@@ -565,6 +697,9 @@ describe("multi-question navigation", () => {
 
 		// Answer Q2
 		comp.handleInput("\r"); // React
+
+		expect(comp.render(80)[1]).toBe("<b>Review your answers</b>");
+		comp.handleInput("\r"); // submit answers
 
 		expect(captured).toEqual([
 			{ answer: "Python", selectedIndex: 1 },
@@ -597,7 +732,7 @@ describe("multi-question navigation", () => {
 	});
 
 	it("Escape cancels entire multi-question flow", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1, q2], (r) => {
 			captured = r;
 		});
@@ -609,7 +744,7 @@ describe("multi-question navigation", () => {
 	});
 
 	it("single question still returns array of one result", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1], (r) => {
 			captured = r;
 		});
@@ -620,7 +755,7 @@ describe("multi-question navigation", () => {
 	});
 
 	it("max 4 questions flow works end-to-end", () => {
-		let captured: SelectionResult[] | null = null;
+		let captured: QuestionResult[] | null = null;
 		const comp = createComp([q1, q2, q3, q1], (r) => {
 			captured = r;
 		});
@@ -635,11 +770,13 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\r"); // confirm
 		// Q4
 		comp.handleInput("\r"); // TypeScript
+		expect(comp.render(80)[1]).toBe("<b>Review your answers</b>");
+		comp.handleInput("\r"); // submit answers
 
 		expect(captured).toHaveLength(4);
-		expect(captured![0].answer).toBe("TypeScript");
-		expect(captured![1].answer).toBe("React");
-		expect(captured![2].answer).toBe("Vercel");
-		expect(captured![3].answer).toBe("TypeScript");
+		expect(captured![0]?.answer).toBe("TypeScript");
+		expect(captured![1]?.answer).toBe("React");
+		expect(captured![2]?.answer).toBe("Vercel");
+		expect(captured![3]?.answer).toBe("TypeScript");
 	});
 });

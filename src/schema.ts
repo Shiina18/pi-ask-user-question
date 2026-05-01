@@ -1,6 +1,9 @@
-import { Type } from "typebox";
+import { Refine, type Static, Type } from "typebox";
 
-export const AskUserQuestionParams = Type.Object(
+const ASK_USER_QUESTION_UNIQUENESS_ERROR =
+	"Question texts must be unique, option labels must be unique within each question";
+
+const AskUserQuestionParamsBase = Type.Object(
 	{
 		questions: Type.Array(
 			Type.Object(
@@ -51,4 +54,22 @@ export const AskUserQuestionParams = Type.Object(
 		),
 	},
 	{ additionalProperties: false },
+);
+
+type AskUserQuestionParamsValue = Static<typeof AskUserQuestionParamsBase>;
+
+function hasUniqueQuestionsAndOptions(value: AskUserQuestionParamsValue): boolean {
+	const questionTexts = value.questions.map((q) => q.question);
+	if (new Set(questionTexts).size !== questionTexts.length) return false;
+
+	return value.questions.every((question) => {
+		const labels = question.options.map((option) => option.label);
+		return new Set(labels).size === labels.length;
+	});
+}
+
+export const AskUserQuestionParams = Refine(
+	AskUserQuestionParamsBase,
+	hasUniqueQuestionsAndOptions,
+	ASK_USER_QUESTION_UNIQUENESS_ERROR,
 );

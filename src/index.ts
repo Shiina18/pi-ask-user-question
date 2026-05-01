@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createQuestionComponent, type SelectionResult } from "./component.js";
+import { createQuestionComponent, type QuestionResult } from "./component.js";
 import { formatDetails, formatResult } from "./formatter.js";
 import { AskUserQuestionParams } from "./schema.js";
 
@@ -23,7 +23,7 @@ export default function (pi: ExtensionAPI): void {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const questions = params.questions;
 
-			const results = await ctx.ui.custom<SelectionResult[] | null>((tui, theme, kb, done) => {
+			const results = await ctx.ui.custom<QuestionResult[] | null>((tui, theme, kb, done) => {
 				return createQuestionComponent(
 					questions.map((q) => ({
 						question: q.question,
@@ -44,7 +44,10 @@ export default function (pi: ExtensionAPI): void {
 
 			const answersMap: Record<string, string> = {};
 			for (let i = 0; i < questions.length; i++) {
-				answersMap[questions[i].question] = results[i].answer;
+				const result = results[i];
+				if (result) {
+					answersMap[questions[i].question] = result.answer;
+				}
 			}
 
 			const text = formatResult(answersMap);

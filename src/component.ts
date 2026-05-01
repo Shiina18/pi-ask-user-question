@@ -23,9 +23,15 @@ export interface SelectionResult {
 	selectedIndices?: number[];
 }
 
+export type QuestionResult = SelectionResult | null;
+
 const OTHER_LABEL = "Other";
 const OTHER_DESCRIPTION = "Type a custom answer";
+const NEXT_LABEL = "Next";
 const SUBMIT_LABEL = "Submit";
+const SUBMIT_ANSWERS_LABEL = "Submit answers";
+const CANCEL_LABEL = "Cancel";
+const SELECTED_MARKER = "✓";
 const CURSOR = "▌";
 const HELP_SINGLE = "Enter to select · ↑/↓ to navigate · Esc to cancel";
 const HELP_MULTI = "Space/Enter to toggle · Submit to confirm · ↑/↓ to navigate · Esc to cancel";
@@ -89,7 +95,7 @@ export function createQuestionComponent(
 	theme: Theme,
 	kb: KeybindingsManager,
 	tui: TUI,
-	done: (results: SelectionResult[] | null) => void,
+	done: (results: QuestionResult[] | null) => void,
 ): Component & { dispose?(): void } {
 	const isMultiQuestion = params.length > 1;
 	const totalQuestions = params.length;
@@ -98,8 +104,9 @@ export function createQuestionComponent(
 		createInitialState(buildItems(q.options.length), q.multiSelect ?? false),
 	);
 
-	const collectedAnswers: (SelectionResult | null)[] = new Array(totalQuestions).fill(null);
+	const collectedAnswers: QuestionResult[] = new Array(totalQuestions).fill(null);
 	let currentIndex = 0;
+	let reviewFocusedIndex = 0;
 	let cachedLines: string[] | undefined;
 
 	function refresh(): void {
@@ -109,28 +116,85 @@ export function createQuestionComponent(
 
 	function goToQuestion(index: number): void {
 		currentIndex = index;
-		if (questionStates[currentIndex].confirmed) {
-			questionStates[currentIndex] = { ...questionStates[currentIndex], confirmed: false };
+		if (currentIndex >= totalQuestions) {
+			refresh();
+			return;
+		}
+		const state = questionStates[currentIndex];
+		if (!state.multiSelect && state.selectedIndex !== null) {
+			questionStates[currentIndex] = {
+				...state,
+				highlightedIndex: state.selectedIndex,
+				isSubmitFocused: false,
+				confirmed: false,
+			};
+		} else if (state.confirmed) {
+			questionStates[currentIndex] = { ...state, confirmed: false };
 		}
 		refresh();
+	}
+
+	function goToReview(): void {
+		currentIndex = totalQuestions;
+		reviewFocusedIndex = 0;
+		refresh();
+	}
+
+	function goToNextQuestion(): void {
+		if (currentIndex < totalQuestions - 1) {
+			goToQuestion(currentIndex + 1);
+		} else if (isMultiQuestion) {
+			goToReview();
+		}
+	}
+
+	function resolveAnswer(index: number): QuestionResult {
+		const state = questionStates[index];
+		if ((params[index].multiSelect ?? false) && state.selectedIndices.length === 0) {
+			return null;
+		}
+		return resolveResult(params[index], state);
+	}
+
+	function recordAnswer(index: number): void {
+		collectedAnswers[index] = resolveAnswer(index);
+	}
+
+	function hasAllAnswers(): boolean {
+		return collectedAnswers.every((answer) => answer !== null && answer.answer.length > 0);
 	}
 
 	function dispatch(action: Action): void {
 		questionStates[currentIndex] = reducer(questionStates[currentIndex], action);
 		const state = questionStates[currentIndex];
+		const multiSelect = params[currentIndex].multiSelect ?? false;
+
+		if (multiSelect && !state.confirmed) {
+			recordAnswer(currentIndex);
+		}
 
 		if (state.confirmed) {
-			collectedAnswers[currentIndex] = resolveResult(params[currentIndex], state);
+			recordAnswer(currentIndex);
 
 			if (currentIndex < totalQuestions - 1) {
 				currentIndex++;
 				refresh();
 				return;
 			}
-			done(collectedAnswers as SelectionResult[]);
+
+			if (isMultiQuestion) {
+				goToReview();
+				return;
+			}
+
+			done(collectedAnswers);
 			return;
 		}
 		refresh();
+	}
+
+	function getMultiSelectConfirmLabel(): string {
+		return currentIndex === totalQuestions - 1 ? SUBMIT_LABEL : NEXT_LABEL;
 	}
 
 	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
@@ -145,6 +209,8 @@ export function createQuestionComponent(
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const marker = multiSelect ? (checked ? "[x]" : "[ ]") : "";
+				const selected = !multiSelect && state.selectedIndex === i;
+				const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
 				const prefix = focused ? `  ${theme.fg("accent", "❯")} ` : "    ";
 				if (multiSelect) {
 					if (focused) {
@@ -155,38 +221,88 @@ export function createQuestionComponent(
 						lines.push(`        ${theme.fg("dim", opt.description)}`);
 					}
 				} else if (focused) {
-					lines.push(`${prefix}${theme.bold(opt.label)}`);
-					lines.push(`    ${theme.fg("muted", opt.description)}`);
+					const label = selected ? theme.fg("success", theme.bold(opt.label)) : theme.bold(opt.label);
+					lines.push(`${prefix}${label}${selectedMarker}`);
+					lines.push(`    ${selected ? theme.fg("success", opt.description) : theme.fg("muted", opt.description)}`);
 				} else {
-					lines.push(`    ${opt.label}`);
-					lines.push(`    ${theme.fg("dim", opt.description)}`);
+					const label = selected ? theme.fg("success", opt.label) : opt.label;
+					lines.push(`    ${label}${selectedMarker}`);
+					lines.push(`    ${selected ? theme.fg("success", opt.description) : theme.fg("dim", opt.description)}`);
 				}
 				continue;
 			}
 
 			const otherMarker = multiSelect ? (checked ? "[x] " : "[ ] ") : "";
+			const selected = !multiSelect && state.selectedIndex === i;
+			const selectedMarker = selected ? ` ${theme.fg("success", SELECTED_MARKER)}` : "";
+			const otherLabel = selected ? theme.fg("success", OTHER_LABEL) : OTHER_LABEL;
 			if (focused) {
-				lines.push(`  ${theme.fg("accent", "❯")} ${otherMarker}${theme.bold(OTHER_LABEL)}`);
+				const label = selected ? theme.fg("success", theme.bold(OTHER_LABEL)) : theme.bold(OTHER_LABEL);
+				lines.push(`  ${theme.fg("accent", "❯")} ${otherMarker}${label}${selectedMarker}`);
 				lines.push(`    ${" ".repeat(multiSelect ? 4 : 0)}${state.textInputValue}${CURSOR}`);
 			} else {
-				lines.push(`    ${otherMarker}${OTHER_LABEL}`);
-				lines.push(`    ${" ".repeat(multiSelect ? 4 : 0)}${theme.fg("dim", OTHER_DESCRIPTION)}`);
+				lines.push(`    ${otherMarker}${otherLabel}${selectedMarker}`);
+				lines.push(
+					`    ${" ".repeat(multiSelect ? 4 : 0)}${
+						selected ? theme.fg("success", OTHER_DESCRIPTION) : theme.fg("dim", OTHER_DESCRIPTION)
+					}`,
+				);
 			}
 		}
 
 		if (multiSelect) {
+			const confirmLabel = getMultiSelectConfirmLabel();
 			if (state.isSubmitFocused) {
-				lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(SUBMIT_LABEL)}`);
+				lines.push(`  ${theme.fg("accent", "❯")} ${theme.bold(confirmLabel)}`);
 			} else {
-				lines.push(`    ${SUBMIT_LABEL}`);
+				lines.push(`    ${confirmLabel}`);
 			}
 		}
 
 		return lines;
 	}
 
+	function renderReviewLines(): string[] {
+		const lines: string[] = [];
+		const allAnswered = hasAllAnswers();
+
+		lines.push(theme.fg("dim", `Question ${totalQuestions + 1} of ${totalQuestions + 1}`));
+		lines.push(theme.bold("Review your answers"));
+		lines.push("");
+
+		if (!allAnswered) {
+			lines.push(theme.fg("warning", "You have not answered all questions"));
+			lines.push("");
+		}
+
+		for (let i = 0; i < totalQuestions; i++) {
+			const answer = collectedAnswers[i];
+			if (!answer) continue;
+			lines.push(`  ${params[i].question}`);
+			lines.push(`    ${theme.fg("success", answer.answer)}`);
+		}
+
+		if (collectedAnswers.some((answer) => answer !== null)) {
+			lines.push("");
+		}
+
+		const submitPrefix = reviewFocusedIndex === 0 ? `  ${theme.fg("accent", "❯")} ` : "    ";
+		const cancelPrefix = reviewFocusedIndex === 1 ? `  ${theme.fg("accent", "❯")} ` : "    ";
+		lines.push(`${submitPrefix}${reviewFocusedIndex === 0 ? theme.bold(SUBMIT_ANSWERS_LABEL) : SUBMIT_ANSWERS_LABEL}`);
+		lines.push(`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.bold(CANCEL_LABEL) : CANCEL_LABEL}`);
+		lines.push("");
+		lines.push(theme.fg("dim", "Enter to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
+
+		return lines;
+	}
+
 	function render(_width: number): string[] {
 		if (cachedLines) return cachedLines;
+
+		if (isMultiQuestion && currentIndex === totalQuestions) {
+			cachedLines = renderReviewLines();
+			return cachedLines;
+		}
 
 		const lines: string[] = [];
 		const q = params[currentIndex];
@@ -213,7 +329,35 @@ export function createQuestionComponent(
 		return lines;
 	}
 
+	function handleReviewInput(data: string): void {
+		if (matchesKey(data, Key.escape)) {
+			done(null);
+			return;
+		}
+		if (matchesKey(data, Key.left) || matchesKey(data, Key.shift("tab"))) {
+			goToQuestion(totalQuestions - 1);
+			return;
+		}
+		if (kb.matches(data, KB_UP) || kb.matches(data, KB_DOWN)) {
+			reviewFocusedIndex = reviewFocusedIndex === 0 ? 1 : 0;
+			refresh();
+			return;
+		}
+		if (kb.matches(data, KB_CONFIRM)) {
+			if (reviewFocusedIndex === 1) {
+				done(null);
+				return;
+			}
+			done(collectedAnswers);
+		}
+	}
+
 	function handleInput(data: string): void {
+		if (isMultiQuestion && currentIndex === totalQuestions) {
+			handleReviewInput(data);
+			return;
+		}
+
 		const state = questionStates[currentIndex];
 		const focusedItem = state.items[state.highlightedIndex];
 		const inputFocused = !state.isSubmitFocused && focusedItem?.type === "input";
@@ -231,6 +375,29 @@ export function createQuestionComponent(
 			if (currentIndex > 0) {
 				goToQuestion(currentIndex - 1);
 			}
+			return;
+		}
+
+		if (isMultiQuestion && matchesKey(data, Key.shift("tab")) && !inputFocused) {
+			if (currentIndex > 0) {
+				goToQuestion(currentIndex - 1);
+			}
+			return;
+		}
+
+		if (isMultiQuestion && (matchesKey(data, Key.right) || matchesKey(data, Key.tab)) && !inputFocused) {
+			goToNextQuestion();
+			return;
+		}
+
+		if (
+			isMultiQuestion &&
+			params[currentIndex].multiSelect &&
+			state.isSubmitFocused &&
+			(kb.matches(data, KB_CONFIRM) || matchesKey(data, Key.space))
+		) {
+			recordAnswer(currentIndex);
+			goToNextQuestion();
 			return;
 		}
 
