@@ -2,6 +2,7 @@
   "name": "pi-ask-user-question",
   "version": "0.1.0",
   "description": "Claude Code-like ask_user_question for Pi",
+  "license": "MIT",
   "main": "src/index.ts",
   "files": [
     "src/component.ts",
@@ -29,6 +30,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "pi": {
     "extensions": [

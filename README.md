@@ -6,7 +6,9 @@ This README records the current UI and interaction contract implemented by the e
 
 ## Install
 
-Add the npm install command here after publish.
+```bash
+pi install npm:pi-ask-user-question
+```
 
 ## Preview
 
