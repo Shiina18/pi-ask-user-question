@@ -20,12 +20,12 @@ Input shape:
 - `options`: 2-4 configured options.
 - `options[].label`: concise option label.
 - `options[].description`: explanatory text rendered under the option.
-- `options[].preview`: accepted by the schema, but not rendered by the current UI.
+- `options[].preview`: optional markdown preview content. Preview mode is enabled only for single-select questions when at least one option has preview content.
 - `multiSelect`: optional boolean. Defaults to `false`.
 
 Question texts must be unique. Option labels must be unique within each question.
 
-The UI always adds one inline custom input row after the configured options. The caller should not add an extra option for that row.
+The UI adds one inline custom input row after the configured options for standard questions. Preview-mode questions omit that custom input row. The caller should not add an extra option for the custom row.
 
 ## Page Layout
 
@@ -81,6 +81,16 @@ Current visual rules:
 - Selected or checked options use accent styling for the checkbox/label/content and description; the number prefix remains dim.
 - Description text is indented to align with the option content column.
 
+Preview-mode visual rules:
+
+- The left panel renders the numbered configured options only.
+- The right panel renders the focused option preview in a bordered markdown box.
+- The custom input row is omitted in preview mode.
+- A notes row appears under the preview box.
+- The notes row starts at the same column as the preview box left border.
+- The `Notes` label uses accent styling.
+- Empty notes show `press n to add notes` in dim styling.
+
 ## Single Question
 
 For a single-question single-select page, the footer is:
@@ -113,6 +123,18 @@ Multi-select behavior:
 - `Submit` does nothing when no answer is selected.
 - Typing custom input automatically includes the custom row in the selected answers.
 - Clearing custom input removes that row from the selected answers.
+
+Preview-mode behavior:
+
+- Preview mode applies only to single-select questions with at least one option preview.
+- `Up` / `Down` moves focus through configured options and updates the preview.
+- `1`-`9` moves focus to the numbered option without submitting.
+- `n` focuses the inline notes entry.
+- While notes are focused, printable keys, spaces, and number keys type into notes.
+- `Backspace` deletes the last notes character.
+- `Enter` while notes are focused submits the currently focused option with the typed notes.
+- `Esc` while notes are focused exits notes entry; a later `Esc` cancels.
+- `Enter` or `Space` outside notes submits the focused option.
 
 ## Multiple Questions
 
@@ -190,8 +212,10 @@ Supported keys on question pages:
 Number key behavior:
 
 - On a configured option, the number performs the same action as focusing that row and pressing `Enter`.
+- In preview mode, the number focuses the numbered option and updates the preview without submitting.
 - On the custom input row, the number focuses the input row without submitting.
 - While the custom input row is focused, number keys type digits instead of acting as shortcuts.
+- While preview notes are focused, number keys type digits instead of acting as shortcuts.
 
 Space behavior:
 
@@ -204,6 +228,14 @@ On success, the tool returns text content like:
 
 ```text
 User has answered your questions: "Question text?"="Selected answer". You can now continue with the user's answers in mind.
+```
+
+For preview answers with notes, text content includes the selected preview and notes:
+
+```text
+User has answered your questions: "Question text?"="Selected answer" selected preview:
+Preview markdown
+ user notes: User note. You can now continue with the user's answers in mind.
 ```
 
 It also returns structured `details`:
@@ -225,11 +257,19 @@ It also returns structured `details`:
   ],
   "answers": {
     "Question text?": "Selected answer"
+  },
+  "annotations": {
+    "Question text?": {
+      "preview": "Preview markdown",
+      "notes": "User note"
+    }
   }
 }
 ```
 
 For multi-select answers, the display answer is a comma-separated string in selection order. The component internally tracks selected labels and indices, but the registered tool currently exposes the formatted answer map in `details.answers`.
+
+`details.annotations` is present only when at least one answer has preview metadata or notes.
 
 If the user cancels, the tool throws `User cancelled`.
 
@@ -239,7 +279,5 @@ The current UI does not implement or display:
 
 - `ctrl+g` / Notepad editing.
 - A `Chat about this` action.
-- Annotation or notes entry after selection.
-- Option preview rendering.
 
 Unsupported actions are omitted from the footer so the UI only advertises working behavior.

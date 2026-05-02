@@ -44,13 +44,16 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			const answersMap: Record<string, string> = {};
-			const annotationsMap: Record<string, { preview?: string }> = {};
+			const annotationsMap: Record<string, { preview?: string; notes?: string }> = {};
 			for (let i = 0; i < questions.length; i++) {
 				const result = results[i];
 				if (result) {
 					answersMap[questions[i].question] = result.answer;
-					if (result.preview) {
-						annotationsMap[questions[i].question] = { preview: result.preview };
+					if (result.preview || result.notes) {
+						annotationsMap[questions[i].question] = {
+							...(result.preview ? { preview: result.preview } : {}),
+							...(result.notes ? { notes: result.notes } : {}),
+						};
 					}
 				}
 			}

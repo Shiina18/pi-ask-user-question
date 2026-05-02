@@ -4,6 +4,7 @@ export interface FormatAnswers {
 
 export interface FormatAnnotation {
 	preview?: string;
+	notes?: string;
 }
 
 export interface FormatAnnotations {
@@ -15,7 +16,8 @@ export function formatResult(answers: FormatAnswers, annotations: FormatAnnotati
 		.map(([questionText, selectedLabel]) => {
 			const annotation = annotations[questionText];
 			const previewText = annotation?.preview ? ` selected preview:\n${annotation.preview}` : "";
-			return `"${questionText}"="${selectedLabel}"${previewText}`;
+			const notesText = annotation?.notes ? ` user notes: ${annotation.notes}` : "";
+			return `"${questionText}"="${selectedLabel}"${previewText}${notesText}`;
 		})
 		.join(", ");
 

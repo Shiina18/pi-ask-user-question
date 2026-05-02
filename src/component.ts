@@ -26,6 +26,7 @@ export interface SelectionResult {
 	answer: string;
 	selectedIndex: number;
 	preview?: string;
+	notes?: string;
 	answers?: string[];
 	selectedIndices?: number[];
 }
@@ -123,7 +124,12 @@ function resolveResult(params: QuestionParams, state: QuestionState): SelectionR
 		return { answer: state.textInputValue, selectedIndex };
 	}
 	const selectedOption = params.options[selectedIndex];
-	return { answer: selectedOption.label, selectedIndex, preview: selectedOption.preview };
+	return {
+		answer: selectedOption.label,
+		selectedIndex,
+		preview: selectedOption.preview,
+		notes: isPreviewQuestion(params) && state.textInputValue.length > 0 ? state.textInputValue : undefined,
+	};
 }
 
 function padEndAnsi(text: string, width: number): string {
@@ -203,6 +209,7 @@ export function createQuestionComponent(
 	const collectedAnswers: QuestionResult[] = new Array(totalQuestions).fill(null);
 	let currentIndex = 0;
 	let reviewFocusedIndex = 0;
+	let isPreviewNotesFocused = false;
 	let cachedLines: string[] | undefined;
 
 	function refresh(): void {
@@ -212,6 +219,7 @@ export function createQuestionComponent(
 
 	function goToQuestion(index: number): void {
 		currentIndex = index;
+		isPreviewNotesFocused = false;
 		if (currentIndex >= totalQuestions) {
 			refresh();
 			return;
@@ -231,6 +239,7 @@ export function createQuestionComponent(
 	function goToReview(): void {
 		currentIndex = totalQuestions;
 		reviewFocusedIndex = 0;
+		isPreviewNotesFocused = false;
 		refresh();
 	}
 
@@ -294,6 +303,7 @@ export function createQuestionComponent(
 	}
 
 	function focusItem(index: number): void {
+		isPreviewNotesFocused = false;
 		questionStates[currentIndex] = {
 			...questionStates[currentIndex],
 			highlightedIndex: index,
@@ -394,6 +404,26 @@ export function createQuestionComponent(
 		return lines;
 	}
 
+	function updatePreviewNotes(text: string): void {
+		questionStates[currentIndex] = {
+			...questionStates[currentIndex],
+			textInputValue: text,
+		};
+		refresh();
+	}
+
+	function renderPreviewNotesLine(state: QuestionState): string {
+		const label = theme.fg("accent", "Notes");
+		const prefix = `${" ".repeat(PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}`;
+		if (isPreviewNotesFocused) {
+			return `${prefix}${label}: ${theme.fg("accent", `${state.textInputValue}${CURSOR}`)}`;
+		}
+		if (state.textInputValue.length > 0) {
+			return `${prefix}${label}: ${state.textInputValue}`;
+		}
+		return `${prefix}${label}: ${theme.fg("dim", "press n to add notes")}`;
+	}
+
 	function renderPreviewQuestionLines(q: QuestionParams, state: QuestionState, width: number): string[] {
 		const selectedIndex = state.selectedIndex;
 		const optionLines = q.options.map((option, index) => {
@@ -424,6 +454,9 @@ export function createQuestionComponent(
 			const right = previewLines[i] ?? "";
 			lines.push(`${padEndAnsi(left, PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}${right}`.trimEnd());
 		}
+
+		lines.push("");
+		lines.push(renderPreviewNotesLine(state));
 
 		return lines;
 	}
@@ -533,6 +566,27 @@ export function createQuestionComponent(
 		const focusedItem = state.items[state.highlightedIndex];
 		const inputFocused = !previewMode && !state.isSubmitFocused && focusedItem?.type === "input";
 
+		if (previewMode && isPreviewNotesFocused) {
+			if (matchesKey(data, Key.escape)) {
+				isPreviewNotesFocused = false;
+				refresh();
+				return;
+			}
+			if (kb.matches(data, KB_CONFIRM)) {
+				dispatch({ type: "selectCurrent" });
+				return;
+			}
+			if (matchesKey(data, Key.backspace)) {
+				updatePreviewNotes(state.textInputValue.slice(0, -1));
+				return;
+			}
+			const ch = getPrintableChar(data);
+			if (ch !== undefined) {
+				updatePreviewNotes(state.textInputValue + ch);
+			}
+			return;
+		}
+
 		if (matchesKey(data, Key.escape)) {
 			if (inputFocused && state.textInputValue.length > 0) {
 				dispatch({ type: "updateTextInput", text: "" });
@@ -573,6 +627,12 @@ export function createQuestionComponent(
 				return;
 			}
 			goToNextQuestion();
+			return;
+		}
+
+		if (previewMode && data === "n") {
+			isPreviewNotesFocused = true;
+			refresh();
 			return;
 		}
 

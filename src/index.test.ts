@@ -15,7 +15,7 @@ describe("ask_user_question registration", () => {
 		expect(registeredTool?.promptGuidelines?.join("\n")).toContain("12 characters or fewer");
 	});
 
-	it("preserves preview annotations in tool output", async () => {
+	it("preserves preview and notes annotations in tool output", async () => {
 		let registeredTool:
 			| {
 					execute?: (...args: unknown[]) => Promise<{
@@ -58,6 +58,7 @@ describe("ask_user_question registration", () => {
 							answer: "Compact",
 							selectedIndex: 0,
 							preview: "Compact preview",
+							notes: "Prefer dense UI",
 						},
 					],
 				},
@@ -65,8 +66,9 @@ describe("ask_user_question registration", () => {
 		);
 
 		expect(result.content[0]?.text).toContain("selected preview:\nCompact preview");
+		expect(result.content[0]?.text).toContain("user notes: Prefer dense UI");
 		expect(result.details).toMatchObject({
-			annotations: { "Which layout should we use?": { preview: "Compact preview" } },
+			annotations: { "Which layout should we use?": { preview: "Compact preview", notes: "Prefer dense UI" } },
 		});
 	});
 });

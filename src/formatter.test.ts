@@ -23,6 +23,17 @@ describe("formatResult", () => {
 			'User has answered your questions: "Which layout should we use?"="Comfortable" selected preview:\nComfortable preview. You can now continue with the user\'s answers in mind.',
 		);
 	});
+
+	it("includes selected preview and user notes when annotations are provided", () => {
+		const result = formatResult(
+			{ "Which layout should we use?": "Comfortable" },
+			{ "Which layout should we use?": { preview: "Comfortable preview", notes: "Prefer fewer moving parts" } },
+		);
+
+		expect(result).toBe(
+			'User has answered your questions: "Which layout should we use?"="Comfortable" selected preview:\nComfortable preview user notes: Prefer fewer moving parts. You can now continue with the user\'s answers in mind.',
+		);
+	});
 });
 
 describe("formatSingleResult", () => {
@@ -111,6 +122,18 @@ describe("formatDetails", () => {
 			questions: [],
 			answers: { "Which library?": "React" },
 			annotations: { "Which library?": { preview: "Preview" } },
+		});
+	});
+
+	it("includes preview and notes annotations when provided", () => {
+		const result = formatDetails({ "Which library?": "React" }, undefined, {
+			"Which library?": { preview: "Preview", notes: "Ship this one" },
+		});
+
+		expect(result).toEqual({
+			questions: [],
+			answers: { "Which library?": "React" },
+			annotations: { "Which library?": { preview: "Preview", notes: "Ship this one" } },
 		});
 	});
 });

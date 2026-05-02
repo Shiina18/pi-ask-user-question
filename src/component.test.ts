@@ -318,6 +318,76 @@ describe("freeform input on Other", () => {
 });
 
 describe("preview questions", () => {
+	it("pressing n focuses notes input without submitting", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+
+		const output = comp.render(80).join("\n");
+		expect(output).toContain("                                  <accent>Notes</accent>: <accent>");
+		expect(captured).toBeUndefined();
+	});
+
+	it("types notes and submits with Enter while notes is focused", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+		comp.handleInput("o");
+		comp.handleInput("k");
+		const output = comp.render(80).join("\n");
+		expect(output).toContain("<accent>Notes</accent>:");
+		expect(output).toContain("ok");
+
+		comp.handleInput("\r");
+		expect(captured).toEqual([
+			{
+				answer: "Compact",
+				selectedIndex: 0,
+				preview: "Compact preview",
+				notes: "ok",
+			},
+		]);
+	});
+
+	it("Escape exits notes input first and cancels preview question on second Escape", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+		comp.handleInput("x");
+		comp.handleInput("\x1b");
+		expect(captured).toBeUndefined();
+		expect(comp.render(80).join("\n")).toContain("                                  <accent>Notes</accent>: x");
+
+		comp.handleInput("\x1b");
+		expect(captured).toBeNull();
+	});
+
+	it("types number keys into preview notes instead of moving option focus", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+		comp.handleInput("2");
+
+		const output = comp.render(80).join("\n");
+		expect(output).toContain("<accent>Notes</accent>:");
+		expect(output).toContain("2");
+		expect(output).toContain("Compact preview");
+		expect(output).not.toContain("Comfortable preview");
+		expect(captured).toBeUndefined();
+	});
+
 	it("moves preview focus with number keys without submitting", () => {
 		let captured: unknown;
 		const comp = createComp([previewParams], (r) => {
