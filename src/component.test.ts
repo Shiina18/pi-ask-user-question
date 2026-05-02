@@ -500,6 +500,8 @@ describe("preview questions", () => {
 		expect(output).toContain("┌");
 		expect(output).toContain("└");
 		expect(output).toContain("const");
+		expect(output).not.toContain("```typescript");
+		expect(output).not.toContain("```");
 		expect(output).not.toContain("+---");
 	});
 });

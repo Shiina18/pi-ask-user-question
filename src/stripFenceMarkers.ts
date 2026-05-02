@@ -1,7 +1,7 @@
 const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
 const ANSI_OSC8_RE = /\x1b\]8;[^\x07\x1b]*(?:\x07|\x1b\\)/g;
 /** Matches pi-tui code-block opener/closer after probes strip ANSI and XML-like theme wrappers. */
-const FENCE_BODY_RE = /^`{3}[a-zA-Z0-9_.+#-]*$/;
+const FENCE_PREFIX_RE = /^`{3}/;
 
 /** How many physical rows may belong to one fence delimiter after `wrapTextWithAnsi`. */
 const MAX_FENCE_LINE_MERGE = 8;
@@ -37,5 +37,10 @@ export function stripFenceMarkers(lines: readonly string[]): string[] {
 function isFenceDelimiterLine(line: string): boolean {
 	const noAnsi = line.replace(ANSI_SGR_RE, "").replace(ANSI_OSC8_RE, "");
 	const unwrapped = noAnsi.replace(/<\/?[^>\s]+>/g, "").trim();
-	return FENCE_BODY_RE.test(unwrapped);
+	// When a styled fence row is split mid-tag (for example `</mdCodeBl` + `ockBorder>`),
+	// the first physical row already starts with ``` after wrapper stripping. Reject any
+	// chunk that still contains raw angle brackets so we only drop it after the merged
+	// rows form a complete wrapper; otherwise we would swallow the next code line too.
+	if (unwrapped.includes("<") || unwrapped.includes(">")) return false;
+	return FENCE_PREFIX_RE.test(unwrapped);
 }

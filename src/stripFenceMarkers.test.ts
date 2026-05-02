@@ -27,4 +27,8 @@ describe("stripFenceMarkers", () => {
 	it("keeps lines that only mention triple backticks mid-string", () => {
 		expect(stripFenceMarkers(["text ``` not start"])).toEqual(["text ``` not start"]);
 	});
+
+	it("drops fence opener lines with extra info after the language token", () => {
+		expect(stripFenceMarkers(["```typescript title=demo", "const x = 1;", "```"])).toEqual(["const x = 1;"]);
+	});
 });
