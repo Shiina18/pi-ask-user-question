@@ -12,9 +12,9 @@ pi install npm:@shiina18/pi-ask-user-question
 
 ## Preview
 
-![Multi-select question UI](./docs/images/multiselect.jpg)
+![Multi-select question UI](https://raw.githubusercontent.com/Shiina18/pi-ask-user-question/main/docs/images/multiselect.jpg)
 
-![Preview mode UI](./docs/images/preview.jpg)
+![Preview mode UI](https://raw.githubusercontent.com/Shiina18/pi-ask-user-question/main/docs/images/preview.jpg)
 
 ## Tool Contract
 

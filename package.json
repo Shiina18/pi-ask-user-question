@@ -1,7 +1,7 @@
 {
   "name": "@shiina18/pi-ask-user-question",
   "version": "0.1.0",
-  "description": "Claude Code-like ask_user_question for Pi",
+  "description": "Claude Code-like ask_user_question tool for Pi",
   "license": "MIT",
   "main": "src/index.ts",
   "files": [
@@ -37,7 +37,8 @@
   "pi": {
     "extensions": [
       "./src/index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/Shiina18/pi-ask-user-question/main/docs/images/preview.jpg"
   },
   "scripts": {
     "check": "biome check --write --error-on-warnings . && tsc --noEmit",
