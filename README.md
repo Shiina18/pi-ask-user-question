@@ -8,6 +8,12 @@ This README records the current UI and interaction contract implemented by the e
 
 Add the npm install command here after publish.
 
+## Preview
+
+![Multi-select question UI](./docs/images/multiselect.jpg)
+
+![Preview mode UI](./docs/images/preview.jpg)
+
 ## Tool Contract
 
 The extension registers one tool:
