@@ -1,6 +1,6 @@
 {
   "name": "@shiina18/pi-ask-user-question",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Claude Code-like ask_user_question tool for Pi",
   "license": "MIT",
   "main": "src/index.ts",
