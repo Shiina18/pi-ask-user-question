@@ -12,6 +12,17 @@ describe("formatResult", () => {
 			'User has answered your questions: "Which library should we use?"="React", "Which test runner should we use?"="Vitest". You can now continue with the user\'s answers in mind.',
 		);
 	});
+
+	it("includes selected preview text when annotations are provided", () => {
+		const result = formatResult(
+			{ "Which layout should we use?": "Comfortable" },
+			{ "Which layout should we use?": { preview: "Comfortable preview" } },
+		);
+
+		expect(result).toBe(
+			'User has answered your questions: "Which layout should we use?"="Comfortable" selected preview:\nComfortable preview. You can now continue with the user\'s answers in mind.',
+		);
+	});
 });
 
 describe("formatSingleResult", () => {
@@ -20,6 +31,14 @@ describe("formatSingleResult", () => {
 		expect(result).toBe(
 			'User has answered your questions: "Which library should we use?"="React". You can now continue with the user\'s answers in mind.',
 		);
+	});
+
+	it("supports preview annotations", () => {
+		const result = formatSingleResult("Which layout should we use?", "Comfortable", {
+			preview: "Comfortable preview",
+		});
+
+		expect(result).toContain("selected preview:\nComfortable preview");
 	});
 
 	it("handles special characters in question text", () => {
@@ -72,7 +91,7 @@ describe("formatDetails", () => {
 			{
 				question: "Which library?",
 				header: "Library",
-				options: [{ label: "React", description: "A UI library" }],
+				options: [{ label: "React", description: "A UI library", preview: "Preview" }],
 				multiSelect: false,
 			},
 		];
@@ -80,6 +99,18 @@ describe("formatDetails", () => {
 		expect(result).toEqual({
 			questions,
 			answers: { "Which library?": "React" },
+		});
+	});
+
+	it("includes annotations when provided", () => {
+		const result = formatDetails({ "Which library?": "React" }, undefined, {
+			"Which library?": { preview: "Preview" },
+		});
+
+		expect(result).toEqual({
+			questions: [],
+			answers: { "Which library?": "React" },
+			annotations: { "Which library?": { preview: "Preview" } },
 		});
 	});
 });

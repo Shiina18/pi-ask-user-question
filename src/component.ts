@@ -1,25 +1,31 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
+import { highlightCode } from "@mariozechner/pi-coding-agent";
 import {
 	type Component,
 	decodeKittyPrintable,
 	Key,
 	type KeybindingsManager,
+	Markdown,
+	type MarkdownTheme,
 	matchesKey,
 	Text,
 	type TUI,
+	truncateToWidth,
+	visibleWidth,
 } from "@mariozechner/pi-tui";
 import { type Action, createInitialState, type QuestionItem, type QuestionState, reducer } from "./state.js";
 
 export interface QuestionParams {
 	question: string;
 	header: string;
-	options: Array<{ label: string; description: string }>;
+	options: Array<{ label: string; description: string; preview?: string }>;
 	multiSelect?: boolean;
 }
 
 export interface SelectionResult {
 	answer: string;
 	selectedIndex: number;
+	preview?: string;
 	answers?: string[];
 	selectedIndices?: number[];
 }
@@ -40,6 +46,11 @@ const HELP_MULTI_QUESTION = "Enter/Space to select · Tab/Arrow keys to navigate
 const KB_UP = "tui.select.up" as const;
 const KB_DOWN = "tui.select.down" as const;
 const KB_CONFIRM = "tui.select.confirm" as const;
+const PREVIEW_LEFT_WIDTH = 30;
+const PREVIEW_GAP = "    ";
+const PREVIEW_MAX_LINES = 20;
+const PREVIEW_MIN_WIDTH = 40;
+const NO_PREVIEW = "No preview available";
 
 function renderQuestionText(theme: Theme, text: string, width: number): string {
 	return new Text(theme.bold(text), 0, 0).render(width)[0]?.trimEnd() ?? "";
@@ -62,6 +73,17 @@ function getPrintableChar(data: string): string | undefined {
 
 function buildItems(optionCount: number): QuestionItem[] {
 	return [...Array.from({ length: optionCount }, () => ({ type: "option" as const })), { type: "input" }];
+}
+
+function isPreviewQuestion(q: QuestionParams): boolean {
+	return !(q.multiSelect ?? false) && q.options.some((option) => option.preview !== undefined);
+}
+
+function buildItemsForQuestion(q: QuestionParams): QuestionItem[] {
+	if (isPreviewQuestion(q)) {
+		return Array.from({ length: q.options.length }, () => ({ type: "option" as const }));
+	}
+	return buildItems(q.options.length);
 }
 
 function getNumberShortcutIndex(data: string): number | undefined {
@@ -100,7 +122,67 @@ function resolveResult(params: QuestionParams, state: QuestionState): SelectionR
 	if (selectedItem?.type === "input") {
 		return { answer: state.textInputValue, selectedIndex };
 	}
-	return { answer: params.options[selectedIndex].label, selectedIndex };
+	const selectedOption = params.options[selectedIndex];
+	return { answer: selectedOption.label, selectedIndex, preview: selectedOption.preview };
+}
+
+function padEndAnsi(text: string, width: number): string {
+	const visibleLength = visibleWidth(text);
+	return `${text}${" ".repeat(Math.max(0, width - visibleLength))}`;
+}
+
+function createMarkdownTheme(theme: Theme): MarkdownTheme {
+	return {
+		heading: (text) => theme.fg("mdHeading", theme.bold(text)),
+		link: (text) => theme.fg("mdLink", text),
+		linkUrl: (text) => theme.fg("mdLinkUrl", text),
+		code: (text) => theme.fg("mdCode", text),
+		codeBlock: (text) => theme.fg("mdCodeBlock", text),
+		codeBlockBorder: (text) => theme.fg("mdCodeBlockBorder", text),
+		quote: (text) => theme.fg("mdQuote", text),
+		quoteBorder: (text) => theme.fg("mdQuoteBorder", text),
+		hr: (text) => theme.fg("mdHr", text),
+		listBullet: (text) => theme.fg("mdListBullet", text),
+		bold: (text) => theme.bold(text),
+		italic: (text) => theme.italic?.(text) ?? text,
+		strikethrough: (text) => theme.strikethrough?.(text) ?? text,
+		underline: (text) => theme.underline?.(text) ?? text,
+		highlightCode,
+		codeBlockIndent: "",
+	};
+}
+
+function renderMarkdownPreviewContent(theme: Theme, content: string, width: number): string[] {
+	return new Markdown(content, 0, 0, createMarkdownTheme(theme)).render(width);
+}
+
+function renderPreviewBox(theme: Theme, content: string, availableWidth: number): string[] {
+	const boxWidth = Math.max(8, availableWidth);
+	const innerWidth = Math.max(4, boxWidth - 4);
+	const sourceLines = renderMarkdownPreviewContent(theme, content, innerWidth);
+	const isTruncated = sourceLines.length > PREVIEW_MAX_LINES;
+	const contentLines = isTruncated ? sourceLines.slice(0, PREVIEW_MAX_LINES) : sourceLines;
+	const contentWidth = Math.max(PREVIEW_MIN_WIDTH, ...contentLines.map((line) => visibleWidth(line)));
+	const fittedBoxWidth = Math.max(8, Math.min(contentWidth + 4, availableWidth));
+	const fittedInnerWidth = Math.max(4, fittedBoxWidth - 4);
+	const horizontal = "─".repeat(fittedBoxWidth - 2);
+	const lines = [theme.fg("dim", `┌${horizontal}┐`)];
+
+	for (const line of contentLines) {
+		const displayLine = truncateToWidth(line, fittedInnerWidth, "", true);
+		lines.push(`${theme.fg("dim", "│ ")}${displayLine}${theme.fg("dim", " │")}`);
+	}
+
+	if (isTruncated) {
+		const hiddenCount = sourceLines.length - PREVIEW_MAX_LINES;
+		const label = `─── ✂ ─── ${hiddenCount} lines hidden `;
+		const labelWidth = visibleWidth(label);
+		const fillWidth = Math.max(0, fittedBoxWidth - 2 - labelWidth);
+		lines.push(theme.fg("warning", `├${label}${"─".repeat(fillWidth)}┤`));
+	}
+
+	lines.push(theme.fg("dim", `└${horizontal}┘`));
+	return lines;
 }
 
 export function createQuestionComponent(
@@ -115,7 +197,7 @@ export function createQuestionComponent(
 	const isSingleQuestionMultiSelect = totalQuestions === 1 && (params[0].multiSelect ?? false);
 
 	const questionStates: QuestionState[] = params.map((q) =>
-		createInitialState(buildItems(q.options.length), q.multiSelect ?? false),
+		createInitialState(buildItemsForQuestion(q), q.multiSelect ?? false),
 	);
 
 	const collectedAnswers: QuestionResult[] = new Array(totalQuestions).fill(null);
@@ -312,6 +394,40 @@ export function createQuestionComponent(
 		return lines;
 	}
 
+	function renderPreviewQuestionLines(q: QuestionParams, state: QuestionState, width: number): string[] {
+		const selectedIndex = state.selectedIndex;
+		const optionLines = q.options.map((option, index) => {
+			const focused = !state.isSubmitFocused && index === state.highlightedIndex;
+			const selected = selectedIndex === index;
+			const prefix = focused ? `${theme.fg("accent", FOCUS_MARKER)} ` : "  ";
+			const numberPrefix = theme.fg("dim", `${index + 1}. `);
+			const label = focused
+				? theme.fg("accent", theme.bold(option.label))
+				: selected
+					? theme.fg("success", option.label)
+					: option.label;
+			const selectedMarker = selected ? ` ${theme.fg("accent", SELECTED_MARKER)}` : "";
+			return `${prefix}${numberPrefix}${label}${selectedMarker}`;
+		});
+
+		const focusedOption = q.options[state.highlightedIndex];
+		const previewLines = renderPreviewBox(
+			theme,
+			focusedOption?.preview ?? NO_PREVIEW,
+			Math.max(8, width - PREVIEW_LEFT_WIDTH - PREVIEW_GAP.length),
+		);
+		const rowCount = Math.max(optionLines.length, previewLines.length);
+		const lines: string[] = [];
+
+		for (let i = 0; i < rowCount; i++) {
+			const left = optionLines[i] ?? "";
+			const right = previewLines[i] ?? "";
+			lines.push(`${padEndAnsi(left, PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}${right}`.trimEnd());
+		}
+
+		return lines;
+	}
+
 	function renderReviewLines(): string[] {
 		const lines: string[] = [];
 		const allAnswered = hasAllAnswers();
@@ -369,7 +485,11 @@ export function createQuestionComponent(
 		lines.push(renderQuestionText(theme, q.question, _width));
 		lines.push("");
 
-		lines.push(...renderQuestionLines(q, state));
+		if (isPreviewQuestion(q)) {
+			lines.push(...renderPreviewQuestionLines(q, state, _width));
+		} else {
+			lines.push(...renderQuestionLines(q, state));
+		}
 
 		lines.push("");
 		const helpText = isMultiQuestion || isSingleQuestionMultiSelect ? HELP_MULTI_QUESTION : HELP_SINGLE;
@@ -409,8 +529,9 @@ export function createQuestionComponent(
 		}
 
 		const state = questionStates[currentIndex];
+		const previewMode = isPreviewQuestion(params[currentIndex]);
 		const focusedItem = state.items[state.highlightedIndex];
-		const inputFocused = !state.isSubmitFocused && focusedItem?.type === "input";
+		const inputFocused = !previewMode && !state.isSubmitFocused && focusedItem?.type === "input";
 
 		if (matchesKey(data, Key.escape)) {
 			if (inputFocused && state.textInputValue.length > 0) {
@@ -469,7 +590,7 @@ export function createQuestionComponent(
 		const shortcutIndex = getNumberShortcutIndex(data);
 		if (shortcutIndex !== undefined && !inputFocused && !state.isSubmitFocused && shortcutIndex < state.items.length) {
 			focusItem(shortcutIndex);
-			if (state.items[shortcutIndex].type === "input") {
+			if (previewMode || state.items[shortcutIndex].type === "input") {
 				refresh();
 			} else {
 				dispatch({ type: "selectCurrent" });

@@ -2,16 +2,28 @@ export interface FormatAnswers {
 	[questionText: string]: string;
 }
 
-export function formatResult(answers: FormatAnswers): string {
+export interface FormatAnnotation {
+	preview?: string;
+}
+
+export interface FormatAnnotations {
+	[questionText: string]: FormatAnnotation;
+}
+
+export function formatResult(answers: FormatAnswers, annotations: FormatAnnotations = {}): string {
 	const answerText = Object.entries(answers)
-		.map(([questionText, selectedLabel]) => `"${questionText}"="${selectedLabel}"`)
+		.map(([questionText, selectedLabel]) => {
+			const annotation = annotations[questionText];
+			const previewText = annotation?.preview ? ` selected preview:\n${annotation.preview}` : "";
+			return `"${questionText}"="${selectedLabel}"${previewText}`;
+		})
 		.join(", ");
 
 	return `User has answered your questions: ${answerText}. You can now continue with the user's answers in mind.`;
 }
 
-export function formatSingleResult(questionText: string, selectedLabel: string): string {
-	return formatResult({ [questionText]: selectedLabel });
+export function formatSingleResult(questionText: string, selectedLabel: string, annotation?: FormatAnnotation): string {
+	return formatResult({ [questionText]: selectedLabel }, annotation ? { [questionText]: annotation } : {});
 }
 
 export function formatDetails(
@@ -19,9 +31,14 @@ export function formatDetails(
 	questions?: Array<{
 		question: string;
 		header: string;
-		options: Array<{ label: string; description: string }>;
+		options: Array<{ label: string; description: string; preview?: string }>;
 		multiSelect: boolean;
 	}>,
+	annotations: FormatAnnotations = {},
 ): Record<string, unknown> {
-	return { questions: questions ?? [], answers };
+	const result: Record<string, unknown> = { questions: questions ?? [], answers };
+	if (Object.keys(annotations).length > 0) {
+		result.annotations = annotations;
+	}
+	return result;
 }

@@ -16,6 +16,7 @@ export default function (pi: ExtensionAPI): void {
 			"Ask 1-4 clear, specific questions per call. Each question must end with a question mark.",
 			"Keep each header at 12 characters or fewer. Prefer a short noun like 'Testing', 'Library', or 'Auth'.",
 			"Provide 2-4 distinct options per question. The system adds an 'Other' freeform option automatically — do not include one yourself.",
+			"Use option preview only for single-select questions when users need to visually compare concrete artifacts such as mockups, layouts, diagrams, or code snippets.",
 			"Before calling, gather context with other tools and frame the question so the user can make an informed choice.",
 		],
 		parameters: AskUserQuestionParams,
@@ -28,7 +29,7 @@ export default function (pi: ExtensionAPI): void {
 					questions.map((q) => ({
 						question: q.question,
 						header: q.header,
-						options: q.options.map((o) => ({ label: o.label, description: o.description })),
+						options: q.options.map((o) => ({ label: o.label, description: o.description, preview: o.preview })),
 						multiSelect: q.multiSelect ?? false,
 					})),
 					theme,
@@ -43,22 +44,27 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			const answersMap: Record<string, string> = {};
+			const annotationsMap: Record<string, { preview?: string }> = {};
 			for (let i = 0; i < questions.length; i++) {
 				const result = results[i];
 				if (result) {
 					answersMap[questions[i].question] = result.answer;
+					if (result.preview) {
+						annotationsMap[questions[i].question] = { preview: result.preview };
+					}
 				}
 			}
 
-			const text = formatResult(answersMap);
+			const text = formatResult(answersMap, annotationsMap);
 			const details = formatDetails(
 				answersMap,
 				questions.map((q) => ({
 					question: q.question,
 					header: q.header,
-					options: q.options.map((o) => ({ label: o.label, description: o.description })),
+					options: q.options.map((o) => ({ label: o.label, description: o.description, preview: o.preview })),
 					multiSelect: q.multiSelect ?? false,
 				})),
+				annotationsMap,
 			);
 
 			return {

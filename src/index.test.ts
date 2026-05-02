@@ -14,4 +14,59 @@ describe("ask_user_question registration", () => {
 
 		expect(registeredTool?.promptGuidelines?.join("\n")).toContain("12 characters or fewer");
 	});
+
+	it("preserves preview annotations in tool output", async () => {
+		let registeredTool:
+			| {
+					execute?: (...args: unknown[]) => Promise<{
+						content: Array<{ type: "text"; text: string }>;
+						details?: Record<string, unknown>;
+					}>;
+			  }
+			| undefined;
+		const pi = {
+			registerTool: (tool: typeof registeredTool) => {
+				registeredTool = tool;
+			},
+		};
+
+		register(pi as never);
+
+		const result = await registeredTool!.execute!(
+			"id",
+			{
+				questions: [
+					{
+						question: "Which layout should we use?",
+						header: "Layout",
+						options: [
+							{
+								label: "Compact",
+								description: "Dense",
+								preview: "Compact preview",
+							},
+						],
+					},
+				],
+			},
+			undefined,
+			undefined,
+			{
+				ui: {
+					custom: async () => [
+						{
+							answer: "Compact",
+							selectedIndex: 0,
+							preview: "Compact preview",
+						},
+					],
+				},
+			},
+		);
+
+		expect(result.content[0]?.text).toContain("selected preview:\nCompact preview");
+		expect(result.details).toMatchObject({
+			annotations: { "Which layout should we use?": { preview: "Compact preview" } },
+		});
+	});
 });

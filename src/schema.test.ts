@@ -39,6 +39,26 @@ describe("AskUserQuestionParams", () => {
 		expect(Value.Check(AskUserQuestionParams, validParams)).toBe(true);
 	});
 
+	it("accepts option preview content", () => {
+		expect(
+			Value.Check(AskUserQuestionParams, {
+				questions: [
+					{
+						...validParams.questions[0],
+						options: [
+							{
+								label: "TypeScript",
+								description: "Typed JavaScript",
+								preview: "```ts\nconst value: string = 'ok';\n```",
+							},
+							{ label: "Python", description: "General purpose", preview: "print('ok')" },
+						],
+					},
+				],
+			}),
+		).toBe(true);
+	});
+
 	it("rejects duplicate question texts", () => {
 		expect(
 			Value.Check(AskUserQuestionParams, {

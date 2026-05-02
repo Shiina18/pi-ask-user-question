@@ -64,6 +64,23 @@ const baseParams: QuestionParams = {
 	],
 };
 
+const previewParams: QuestionParams = {
+	question: "Which layout should we use?",
+	header: "Layout",
+	options: [
+		{
+			label: "Compact",
+			description: "Dense information layout",
+			preview: "Compact preview",
+		},
+		{
+			label: "Comfortable",
+			description: "More spacious layout",
+			preview: "Comfortable preview",
+		},
+	],
+};
+
 describe("render snapshot", () => {
 	it("renders question title through the theme bold helper", () => {
 		const theme = {
@@ -148,6 +165,14 @@ describe("render snapshot", () => {
 			"",
 			"<dim>Enter/Space to select · ↑/↓ to navigate · Esc to cancel</dim>",
 		]);
+	});
+
+	it("renders preview questions without 'Other' and shows the focused preview", () => {
+		const { lines } = renderSnapshot([previewParams]);
+
+		expect(lines.join("\n")).toContain("Compact preview");
+		expect(lines.join("\n")).not.toContain("Type something");
+		expect(lines.join("\n")).not.toContain("No preview available");
 	});
 
 	it("renders 'Other' with cursor when highlighted (no description)", () => {
@@ -292,6 +317,64 @@ describe("freeform input on Other", () => {
 	});
 });
 
+describe("preview questions", () => {
+	it("moves preview focus with number keys without submitting", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("2");
+		expect(captured).toBeUndefined();
+
+		const lines = comp.render(80);
+		expect(lines.join("\n")).toContain("Comfortable preview");
+		expect(lines.join("\n")).not.toContain("No preview available");
+	});
+
+	it("returns the selected preview in the result", () => {
+		let captured: QuestionResult[] | null = null;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("2");
+		comp.handleInput("\r");
+
+		expect(captured).toEqual([
+			{
+				answer: "Comfortable",
+				selectedIndex: 1,
+				preview: "Comfortable preview",
+			},
+		]);
+	});
+
+	it("renders markdown code previews with box-drawing borders", () => {
+		const { lines } = renderSnapshot([
+			{
+				question: "Which implementation?",
+				header: "Approach",
+				options: [
+					{
+						label: "Async Loop",
+						description: "Retry with a loop",
+						preview: "```typescript\nconst delay = (ms: number) => Promise.resolve(ms);\n```",
+					},
+					{ label: "Recursive", description: "Retry recursively" },
+				],
+			},
+		]);
+		const output = lines.join("\n");
+
+		expect(output).toContain("┌");
+		expect(output).toContain("└");
+		expect(output).toContain("```typescript");
+		expect(output).toContain("const");
+		expect(output).not.toContain("+---");
+	});
+});
+
 describe("multi-select", () => {
 	const multiParams: QuestionParams = {
 		question: "Which features do you want?",
@@ -323,6 +406,18 @@ describe("multi-select", () => {
 			"",
 			"<dim>Enter/Space to select · Tab/Arrow keys to navigate · Esc to cancel</dim>",
 		]);
+	});
+
+	it("keeps multi-select questions with previews in standard mode", () => {
+		const { lines } = renderSnapshot([
+			{
+				...multiParams,
+				options: multiParams.options.map((option) => ({ ...option, preview: `${option.label} preview` })),
+			},
+		]);
+
+		expect(lines.join("\n")).toContain("Type something");
+		expect(lines.join("\n")).not.toContain("Auth preview");
 	});
 
 	it("toggles selection with Space", () => {
