@@ -56,6 +56,45 @@ const PREVIEW_MAX_LINES = 20;
 const PREVIEW_MIN_WIDTH = 40;
 const NO_PREVIEW = "No preview available";
 
+function fitToWidth(text: string, width: number): string {
+	return truncateToWidth(text, Math.max(1, width), "...", true).trimEnd();
+}
+
+function wrapPlainText(text: string, width: number): string[] {
+	const maxWidth = Math.max(1, width);
+	const words = text.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return [""];
+
+	const lines: string[] = [];
+	let current = "";
+
+	for (const word of words) {
+		const next = current.length > 0 ? `${current} ${word}` : word;
+		if (visibleWidth(next) <= maxWidth) {
+			current = next;
+			continue;
+		}
+
+		if (current.length > 0) {
+			lines.push(current);
+			current = "";
+		}
+
+		if (visibleWidth(word) <= maxWidth) {
+			current = word;
+			continue;
+		}
+
+		lines.push(fitToWidth(word, maxWidth));
+	}
+
+	if (current.length > 0) {
+		lines.push(current);
+	}
+
+	return lines.length > 0 ? lines : [""];
+}
+
 function renderQuestionText(theme: Theme, text: string, width: number): string {
 	return new Text(theme.bold(text), 0, 0).render(width)[0]?.trimEnd() ?? "";
 }
@@ -197,7 +236,7 @@ function renderMarkdownPreviewContent(theme: Theme, content: string, width: numb
 function renderPreviewBox(theme: Theme, content: string, availableWidth: number): string[] {
 	const boxWidth = Math.max(8, availableWidth);
 	const innerWidth = Math.max(4, boxWidth - 4);
-	const sourceLines = renderMarkdownPreviewContent(theme, content, innerWidth);
+	const sourceLines = renderMarkdownPreviewContent(theme, content, Math.max(innerWidth, 120));
 	const isTruncated = sourceLines.length > PREVIEW_MAX_LINES;
 	const contentLines = isTruncated ? sourceLines.slice(0, PREVIEW_MAX_LINES) : sourceLines;
 	const contentWidth = Math.max(PREVIEW_MIN_WIDTH, ...contentLines.map((line) => visibleWidth(line)));
@@ -244,9 +283,11 @@ export function createQuestionComponent(
 	let reviewFocusedIndex = 0;
 	let isPreviewNotesFocused = false;
 	let cachedLines: string[] | undefined;
+	let cachedWidth: number | undefined;
 
 	function refresh(): void {
 		cachedLines = undefined;
+		cachedWidth = undefined;
 		tui.requestRender();
 	}
 
@@ -459,42 +500,60 @@ export function createQuestionComponent(
 		refresh();
 	}
 
-	function renderPreviewNotesLine(state: QuestionState): string {
+	function renderPreviewNotesLine(state: QuestionState, width: number, leftWidth: number): string {
 		const label = theme.fg("accent", "Notes");
-		const prefix = `${" ".repeat(PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}`;
+		const prefix = `${" ".repeat(leftWidth)}${PREVIEW_GAP}`;
+		let line: string;
 		if (isPreviewNotesFocused) {
 			if (state.textInputValue.length === 0) {
-				return `${prefix}${label}: ${renderPlaceholderWithCursor(theme, PREVIEW_NOTES_PLACEHOLDER)}`;
+				line = `${prefix}${label}: ${renderPlaceholderWithCursor(theme, PREVIEW_NOTES_PLACEHOLDER)}`;
+			} else {
+				line = `${prefix}${label}: ${theme.fg("accent", renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor()))}`;
 			}
-			return `${prefix}${label}: ${theme.fg("accent", renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor()))}`;
+		} else if (state.textInputValue.length > 0) {
+			line = `${prefix}${label}: ${state.textInputValue}`;
+		} else {
+			line = `${prefix}${label}: ${theme.fg("dim", "press n to add notes")}`;
 		}
-		if (state.textInputValue.length > 0) {
-			return `${prefix}${label}: ${state.textInputValue}`;
-		}
-		return `${prefix}${label}: ${theme.fg("dim", "press n to add notes")}`;
+		return fitToWidth(line, width);
 	}
 
 	function renderPreviewQuestionLines(q: QuestionParams, state: QuestionState, width: number): string[] {
-		const selectedIndex = state.selectedIndex;
-		const optionLines = q.options.map((option, index) => {
+		const leftWidth = Math.min(PREVIEW_LEFT_WIDTH, Math.max(12, width - PREVIEW_GAP.length - 8));
+		const optionLines: string[] = [];
+
+		for (let index = 0; index < q.options.length; index++) {
+			const option = q.options[index];
 			const focused = !state.isSubmitFocused && index === state.highlightedIndex;
-			const selected = selectedIndex === index;
+			const selected = state.selectedIndex === index;
 			const prefix = focused ? `${theme.fg("accent", FOCUS_MARKER)} ` : "  ";
 			const numberPrefix = theme.fg("dim", `${index + 1}. `);
-			const label = focused
-				? theme.fg("accent", theme.bold(option.label))
-				: selected
-					? theme.fg("success", option.label)
-					: option.label;
 			const selectedMarker = selected ? ` ${theme.fg("accent", SELECTED_MARKER)}` : "";
-			return `${prefix}${numberPrefix}${label}${selectedMarker}`;
-		});
+			const prefixWidth = 2;
+			const numberPrefixWidth = String(index + 1).length + 2;
+			const selectedMarkerWidth = selected ? 2 : 0;
+			const firstLineLabelWidth = Math.max(1, leftWidth - prefixWidth - numberPrefixWidth - selectedMarkerWidth);
+			const continuationIndent = " ".repeat(prefixWidth + numberPrefixWidth);
+			const labelLines = wrapPlainText(option.label, firstLineLabelWidth);
+			const style = focused
+				? (text: string) => theme.fg("accent", theme.bold(text))
+				: selected
+					? (text: string) => theme.fg("success", text)
+					: (text: string) => text;
+			for (const [lineIndex, segment] of labelLines.entries()) {
+				if (lineIndex === 0) {
+					optionLines.push(`${prefix}${numberPrefix}${style(segment)}${selectedMarker}`);
+					continue;
+				}
+				optionLines.push(`${continuationIndent}${style(segment)}`);
+			}
+		}
 
 		const focusedOption = q.options[state.highlightedIndex];
 		const previewLines = renderPreviewBox(
 			theme,
 			focusedOption?.preview ?? NO_PREVIEW,
-			Math.max(8, width - PREVIEW_LEFT_WIDTH - PREVIEW_GAP.length),
+			Math.max(8, width - leftWidth - PREVIEW_GAP.length),
 		);
 		const rowCount = Math.max(optionLines.length, previewLines.length);
 		const lines: string[] = [];
@@ -502,16 +561,16 @@ export function createQuestionComponent(
 		for (let i = 0; i < rowCount; i++) {
 			const left = optionLines[i] ?? "";
 			const right = previewLines[i] ?? "";
-			lines.push(`${padEndAnsi(left, PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}${right}`.trimEnd());
+			lines.push(`${padEndAnsi(left, leftWidth)}${PREVIEW_GAP}${right}`.trimEnd());
 		}
 
 		lines.push("");
-		lines.push(renderPreviewNotesLine(state));
+		lines.push(renderPreviewNotesLine(state, width, leftWidth));
 
 		return lines;
 	}
 
-	function renderReviewLines(): string[] {
+	function renderReviewLines(_width: number): string[] {
 		const lines: string[] = [];
 		const allAnswered = hasAllAnswers();
 
@@ -551,10 +610,11 @@ export function createQuestionComponent(
 	}
 
 	function render(_width: number): string[] {
-		if (cachedLines) return cachedLines;
+		if (cachedLines && cachedWidth === _width) return cachedLines;
 
 		if (isMultiQuestion && currentIndex === totalQuestions) {
-			cachedLines = renderReviewLines();
+			cachedLines = renderReviewLines(_width);
+			cachedWidth = _width;
 			return cachedLines;
 		}
 
@@ -579,7 +639,8 @@ export function createQuestionComponent(
 		lines.push(theme.fg("dim", helpText));
 
 		cachedLines = lines;
-		return lines;
+		cachedWidth = _width;
+		return cachedLines;
 	}
 
 	function handleReviewInput(data: string): void {
@@ -771,6 +832,7 @@ export function createQuestionComponent(
 
 	function invalidate(): void {
 		cachedLines = undefined;
+		cachedWidth = undefined;
 	}
 
 	return { render, handleInput, invalidate };

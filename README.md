@@ -88,13 +88,16 @@ Current visual rules:
 Preview-mode visual rules:
 
 - The left panel renders the numbered configured options only.
+- Long option labels wrap within the left panel when space allows.
 - The right panel renders the focused option preview in a bordered markdown box.
+- Preview content is rendered from a wide source layout and clipped to the live preview box width when the terminal becomes narrow.
 - The custom input row is omitted in preview mode.
 - A notes row appears under the preview box.
 - The notes row starts at the same column as the preview box left border.
 - The `Notes` label uses accent styling.
 - Empty notes show `press n to add notes` in dim styling when notes are not focused.
 - Pressing `n` focuses notes and changes the empty inline placeholder to `Add notes on this design...`, with the cursor on `A`.
+- Preview layout recomputes on terminal resize instead of reusing a stale width cache.
 
 ## Single Question
 

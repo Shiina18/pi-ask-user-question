@@ -1,5 +1,5 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey } from "@mariozechner/pi-tui";
+import { matchesKey, visibleWidth } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
 import { createQuestionComponent, type QuestionParams, type QuestionResult } from "./component.js";
 
@@ -33,6 +33,10 @@ type TestComponent = ReturnType<typeof createQuestionComponent> & { handleInput(
 type Done = (results: QuestionResult[] | null) => void;
 
 function renderSnapshot(params: QuestionParams[]): { lines: string[]; result: unknown } {
+	return renderSnapshotWithWidth(params, 80);
+}
+
+function renderSnapshotWithWidth(params: QuestionParams[], width: number): { lines: string[]; result: unknown } {
 	const theme = mockTheme();
 	const kb = mockKb();
 	const tui = mockTui();
@@ -42,7 +46,7 @@ function renderSnapshot(params: QuestionParams[]): { lines: string[]; result: un
 	};
 
 	const comp = createQuestionComponent(params, theme, kb as never, tui as never, done) as TestComponent;
-	const lines = comp.render(80);
+	const lines = comp.render(width);
 	return { lines, result: captured };
 }
 
@@ -346,9 +350,8 @@ describe("preview questions", () => {
 		comp.handleInput("n");
 
 		const output = comp.render(80).join("\n");
-		expect(output).toContain(
-			"                                  <accent>Notes</accent>: <inv>A</inv><dim>dd notes on this design...</dim>",
-		);
+		expect(output).toContain("<accent>Notes</accent>:");
+		expect(output).toContain("<inv>A</inv><dim>dd");
 		expect(captured).toBeUndefined();
 	});
 
@@ -503,6 +506,95 @@ describe("preview questions", () => {
 		expect(output).not.toContain("```typescript");
 		expect(output).not.toContain("```");
 		expect(output).not.toContain("+---");
+	});
+
+	it("keeps preview mode within terminal width when option labels are long", () => {
+		const { lines } = renderSnapshotWithWidth(
+			[
+				{
+					question: "Which retry helper implementation approach would you like to use?",
+					header: "Retry Helper",
+					options: [
+						{
+							label: "Async Loop with Exponential Backoff",
+							description: "Loop with growing delays",
+							preview: "```typescript\nconst retry = async () => {};\n```",
+						},
+						{
+							label: "Recursive Retry Function",
+							description: "Tail-recursive retry",
+							preview: "```typescript\nconst retry = () => {};\n```",
+						},
+					],
+				},
+			],
+			108,
+		);
+
+		for (const line of lines) {
+			expect(visibleWidth(line.replace(/<[^>]+>/g, ""))).toBeLessThanOrEqual(108);
+		}
+	});
+
+	it("truncates preview content instead of reflowing it in narrow terminals", () => {
+		const { lines } = renderSnapshotWithWidth(
+			[
+				{
+					question: "Which retry helper implementation approach would you like to use?",
+					header: "Retry Helper",
+					options: [
+						{
+							label: "Async Loop + Exponential Backoff",
+							description: "Loop with growing delays",
+							preview:
+								"```typescript\nasync function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 1000): Promise<T> {}\n```",
+						},
+						{
+							label: "Recursive Retry Function",
+							description: "Tail-recursive retry",
+							preview: "```typescript\nconst retry = () => {};\n```",
+						},
+					],
+				},
+			],
+			72,
+		);
+
+		const output = lines.join("\n");
+		expect(output).toContain("retryWith");
+		expect(output).not.toContain("maxRetries");
+	});
+
+	it("re-renders preview layout when terminal width changes", () => {
+		const comp = createComp(
+			[
+				{
+					question: "Which retry helper implementation approach would you like to use?",
+					header: "Retry Helper",
+					options: [
+						{
+							label: "Async Loop with Exponential Backoff",
+							description: "Loop with growing delays",
+							preview:
+								"```typescript\nasync function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 1000): Promise<T> {}\n```",
+						},
+						{
+							label: "Recursive Retry Function",
+							description: "Tail-recursive retry",
+							preview: "```typescript\nconst retry = () => {};\n```",
+						},
+					],
+				},
+			],
+			() => {},
+		);
+
+		const wide = comp.render(108).join("\n");
+		const narrow = comp.render(72).join("\n");
+
+		expect(wide).toContain("maxRetries");
+		expect(narrow).not.toContain("maxRetries");
+		expect(wide).not.toBe(narrow);
 	});
 });
 
