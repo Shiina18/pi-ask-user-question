@@ -1,5 +1,5 @@
 {
-  "name": "pi-ask-user-question",
+  "name": "@shiina18/pi-ask-user-question",
   "version": "0.1.0",
   "description": "Claude Code-like ask_user_question for Pi",
   "license": "MIT",

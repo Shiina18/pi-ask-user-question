@@ -7,7 +7,7 @@ This README records the current UI and interaction contract implemented by the e
 ## Install
 
 ```bash
-pi install npm:pi-ask-user-question
+pi install npm:@shiina18/pi-ask-user-question
 ```
 
 ## Preview
