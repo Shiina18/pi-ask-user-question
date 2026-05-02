@@ -1,8 +1,12 @@
 # pi-ask-user-question
 
-Pi coding agent extension for `ask_user_question`, an interactive tool that asks the user 1-4 focused multiple-choice questions and returns the selected answers to the agent.
+Claude Code-like `ask_user_question` tool for Pi.
 
 This README records the current UI and interaction contract implemented by the extension.
+
+## Install
+
+Add the npm install command here after publish.
 
 ## Tool Contract
 

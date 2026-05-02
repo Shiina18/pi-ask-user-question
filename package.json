@@ -1,20 +1,51 @@
 {
   "name": "pi-ask-user-question",
-  "version": "1.0.0",
-  "description": "Pi coding agent extension — interactive user question tool",
+  "version": "0.1.0",
+  "description": "Claude Code-like ask_user_question for Pi",
   "main": "src/index.ts",
+  "files": [
+    "src/component.ts",
+    "src/formatter.ts",
+    "src/index.ts",
+    "src/schema.ts",
+    "src/state.ts",
+    "src/stripFenceMarkers.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "ask-user-question"
+  ],
+  "author": "Shiina18",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shiina18/pi-ask-user-question.git"
+  },
+  "homepage": "https://github.com/Shiina18/pi-ask-user-question#readme",
+  "bugs": {
+    "url": "https://github.com/Shiina18/pi-ask-user-question/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
   "scripts": {
     "check": "biome check --write --error-on-warnings . && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky || echo husky skipped",
+    "pack:check": "npm pack --dry-run"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
+    "@mariozechner/pi-coding-agent": "^0.71.0",
     "@mariozechner/pi-tui": "^0.71.0",
     "@types/node": "^25.6.0",
     "husky": "^9.1.7",
@@ -23,6 +54,7 @@
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "^0.71.0",
+    "@mariozechner/pi-tui": "^0.71.0",
     "typebox": "^1.1.35"
   }
 }

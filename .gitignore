@@ -1,8 +1,11 @@
 node_modules/
+.npm-cache/
 dist/
 *.js
 *.d.ts
 !.claude/
+.claude/
 dev_docs/
 plans/
 CLAUDE.md
+AGENTS.md
