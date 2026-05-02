@@ -14,6 +14,7 @@ import {
 	visibleWidth,
 } from "@mariozechner/pi-tui";
 import { type Action, createInitialState, type QuestionItem, type QuestionState, reducer } from "./state.js";
+import { stripFenceMarkers } from "./stripFenceMarkers.js";
 
 export interface QuestionParams {
 	question: string;
@@ -34,10 +35,13 @@ export interface SelectionResult {
 export type QuestionResult = SelectionResult | null;
 
 const OTHER_PLACEHOLDER = "Type something";
+const PREVIEW_NOTES_PLACEHOLDER = "Add notes on this design...";
 const NEXT_LABEL = "Next";
 const SUBMIT_LABEL = "Submit";
 const SUBMIT_ANSWERS_LABEL = "Submit answers";
 const CANCEL_LABEL = "Cancel";
+const TAB_UNANSWERED = "☐";
+const TAB_ANSWERED = "☒";
 const SELECTED_MARKER = "✓";
 const FOCUS_MARKER = "❯";
 const HELP_SINGLE = "Enter/Space to select · ↑/↓ to navigate · Esc to cancel";
@@ -56,8 +60,8 @@ function renderQuestionText(theme: Theme, text: string, width: number): string {
 	return new Text(theme.bold(text), 0, 0).render(width)[0]?.trimEnd() ?? "";
 }
 
-function renderPlaceholderWithCursor(theme: Theme): string {
-	return theme.inverse(OTHER_PLACEHOLDER[0]) + theme.fg("dim", OTHER_PLACEHOLDER.slice(1));
+function renderPlaceholderWithCursor(theme: Theme, placeholder: string): string {
+	return theme.inverse(placeholder[0]) + theme.fg("dim", placeholder.slice(1));
 }
 
 function clampCursor(cursor: number, text: string): number {
@@ -186,7 +190,8 @@ function createMarkdownTheme(theme: Theme): MarkdownTheme {
 }
 
 function renderMarkdownPreviewContent(theme: Theme, content: string, width: number): string[] {
-	return new Markdown(content, 0, 0, createMarkdownTheme(theme)).render(width);
+	const raw = new Markdown(content, 0, 0, createMarkdownTheme(theme)).render(width);
+	return stripFenceMarkers(raw);
 }
 
 function renderPreviewBox(theme: Theme, content: string, availableWidth: number): string[] {
@@ -351,7 +356,7 @@ export function createQuestionComponent(
 	function renderHeaderTabs(): string {
 		const questionTabs = params.map((q, index) => {
 			const answered = collectedAnswers[index] !== null;
-			const box = answered ? "[x]" : "[ ]";
+			const box = answered ? TAB_ANSWERED : TAB_UNANSWERED;
 			const tab = `  ${box} ${q.header} `;
 			if (index === currentIndex) return theme.bg("selectedBg", theme.fg("text", tab));
 			return theme.fg(answered ? "success" : "dim", tab);
@@ -369,7 +374,7 @@ export function createQuestionComponent(
 			(!isMultiQuestion && questionStates[0].isSubmitFocused) ||
 			activeQuestionSubmit;
 		const readyToSubmit = hasAllAnswers();
-		const submitBox = readyToSubmit ? "[x]" : "[ ]";
+		const submitBox = readyToSubmit ? TAB_ANSWERED : TAB_UNANSWERED;
 		const submitTab = `  ${submitBox} ${SUBMIT_LABEL} `;
 		const styledSubmit = activeSubmit
 			? theme.bg("selectedBg", theme.fg("text", submitTab))
@@ -395,17 +400,11 @@ export function createQuestionComponent(
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const descriptionPrefix = "     ";
-				const descriptionStyle = chosen || focused ? "accent" : "dim";
 				const label = focused ? theme.bold(opt.label) : opt.label;
 				const rowRest = `${checkMarker}${label}`;
 				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
-				if (focused) {
-					lines.push(`${prefix}${row}${selectedMarker}`);
-					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
-				} else {
-					lines.push(`${prefix}${row}${selectedMarker}`);
-					lines.push(`${descriptionPrefix}${theme.fg(descriptionStyle, opt.description)}`);
-				}
+				lines.push(`${prefix}${row}${selectedMarker}`);
+				lines.push(`${descriptionPrefix}${theme.fg("dim", opt.description)}`);
 				continue;
 			}
 
@@ -413,7 +412,7 @@ export function createQuestionComponent(
 				const hasInput = state.textInputValue.length > 0;
 				const inputText = hasInput
 					? renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor())
-					: renderPlaceholderWithCursor(theme);
+					: renderPlaceholderWithCursor(theme, OTHER_PLACEHOLDER);
 				const label = hasInput ? theme.bold(inputText) : inputText;
 				const rowRest = `${checkMarker}${label}`;
 				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
@@ -464,6 +463,9 @@ export function createQuestionComponent(
 		const label = theme.fg("accent", "Notes");
 		const prefix = `${" ".repeat(PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}`;
 		if (isPreviewNotesFocused) {
+			if (state.textInputValue.length === 0) {
+				return `${prefix}${label}: ${renderPlaceholderWithCursor(theme, PREVIEW_NOTES_PLACEHOLDER)}`;
+			}
 			return `${prefix}${label}: ${theme.fg("accent", renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor()))}`;
 		}
 		if (state.textInputValue.length > 0) {

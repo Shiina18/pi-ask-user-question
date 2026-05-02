@@ -102,12 +102,12 @@ describe("render snapshot", () => {
 		const { lines } = renderSnapshot([baseParams]);
 
 		expect(lines).toEqual([
-			"<bg:selectedBg><text>  [ ] Framework </text></bg:selectedBg>",
+			"<bg:selectedBg><text>  ☐ Framework </text></bg:selectedBg>",
 			"",
 			"<b>Which framework should we use?</b>",
 			"",
 			"<accent>❯</accent> <dim>1. </dim><accent><b>React</b></accent>",
-			"     <accent>A JavaScript library for building UIs</accent>",
+			"     <dim>A JavaScript library for building UIs</dim>",
 			"  <dim>2. </dim>Vue",
 			"     <dim>The progressive JavaScript framework</dim>",
 			"  <dim>3. </dim>Svelte",
@@ -131,12 +131,12 @@ describe("render snapshot", () => {
 		]);
 
 		expect(lines).toEqual([
-			"<bg:selectedBg><text>  [ ] Theme </text></bg:selectedBg>",
+			"<bg:selectedBg><text>  ☐ Theme </text></bg:selectedBg>",
 			"",
 			"<b>Dark mode or light mode?</b>",
 			"",
 			"<accent>❯</accent> <dim>1. </dim><accent><b>Dark</b></accent>",
-			"     <accent>Easy on the eyes</accent>",
+			"     <dim>Easy on the eyes</dim>",
 			"  <dim>2. </dim>Light",
 			"     <dim>Classic look</dim>",
 			"  <dim>3. </dim><dim>Type something</dim>",
@@ -155,12 +155,12 @@ describe("render snapshot", () => {
 		]);
 
 		expect(lines).toEqual([
-			"<bg:selectedBg><text>  [ ] Confirm </text></bg:selectedBg>",
+			"<bg:selectedBg><text>  ☐ Confirm </text></bg:selectedBg>",
 			"",
 			"<b>Continue?</b>",
 			"",
 			"<accent>❯</accent> <dim>1. </dim><accent><b>Yes</b></accent>",
-			"     <accent>Proceed with the action</accent>",
+			"     <dim>Proceed with the action</dim>",
 			"  <dim>2. </dim><dim>Type something</dim>",
 			"",
 			"<dim>Enter/Space to select · ↑/↓ to navigate · Esc to cancel</dim>",
@@ -346,7 +346,9 @@ describe("preview questions", () => {
 		comp.handleInput("n");
 
 		const output = comp.render(80).join("\n");
-		expect(output).toContain("                                  <accent>Notes</accent>: <accent>");
+		expect(output).toContain(
+			"                                  <accent>Notes</accent>: <inv>A</inv><dim>dd notes on this design...</dim>",
+		);
 		expect(captured).toBeUndefined();
 	});
 
@@ -497,7 +499,6 @@ describe("preview questions", () => {
 
 		expect(output).toContain("┌");
 		expect(output).toContain("└");
-		expect(output).toContain("```typescript");
 		expect(output).toContain("const");
 		expect(output).not.toContain("+---");
 	});
@@ -519,12 +520,12 @@ describe("multi-select", () => {
 		const { lines } = renderSnapshot([multiParams]);
 
 		expect(lines).toEqual([
-			"<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <dim>  [ ] Submit </dim>",
+			"<bg:selectedBg><text>  ☐ Features </text></bg:selectedBg> <dim>  ☐ Submit </dim>",
 			"",
 			"<b>Which features do you want?</b>",
 			"",
 			"<accent>❯</accent> <dim>1. </dim><accent>[ ] <b>Auth</b></accent>",
-			"     <accent>User authentication</accent>",
+			"     <dim>User authentication</dim>",
 			"  <dim>2. </dim>[ ] Cache",
 			"     <dim>Response caching</dim>",
 			"  <dim>3. </dim>[ ] Logger",
@@ -554,7 +555,7 @@ describe("multi-select", () => {
 
 		const lines = comp.render(80);
 		expect(lines[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[x] <b>Auth</b></accent>");
-		expect(lines[5]).toBe("     <accent>User authentication</accent>");
+		expect(lines[5]).toBe("     <dim>User authentication</dim>");
 
 		comp.handleInput(" "); // toggle first item off
 		const lines2 = comp.render(80);
@@ -624,7 +625,7 @@ describe("multi-select", () => {
 		const lines = comp.render(80);
 		expect(lines[10]).toBe("  <dim>4. </dim>[ ] <dim>Type something</dim>");
 		expect(lines[0]).toBe(
-			"<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <bg:selectedBg><text>  [ ] Submit </text></bg:selectedBg>",
+			"<bg:selectedBg><text>  ☐ Features </text></bg:selectedBg> <bg:selectedBg><text>  ☐ Submit </text></bg:selectedBg>",
 		);
 		expect(lines[11]).toBe("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 	});
@@ -635,13 +636,13 @@ describe("multi-select", () => {
 		comp.handleInput("\x1b[C"); // Right arrow moves to Submit
 		let lines = comp.render(80);
 		expect(lines[0]).toBe(
-			"<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <bg:selectedBg><text>  [ ] Submit </text></bg:selectedBg>",
+			"<bg:selectedBg><text>  ☐ Features </text></bg:selectedBg> <bg:selectedBg><text>  ☐ Submit </text></bg:selectedBg>",
 		);
 		expect(lines[11]).toBe("<accent>❯</accent>    <accent><b>Submit</b></accent>");
 
 		comp.handleInput("\x1b[D"); // Left arrow returns to the question
 		lines = comp.render(80);
-		expect(lines[0]).toBe("<bg:selectedBg><text>  [ ] Features </text></bg:selectedBg> <dim>  [ ] Submit </dim>");
+		expect(lines[0]).toBe("<bg:selectedBg><text>  ☐ Features </text></bg:selectedBg> <dim>  ☐ Submit </dim>");
 		expect(lines[4]).toBe("<accent>❯</accent> <dim>1. </dim><accent>[ ] <b>Auth</b></accent>");
 
 		comp.handleInput("\t"); // Tab also moves to Submit
@@ -780,7 +781,7 @@ describe("multi-question navigation", () => {
 		const { lines } = renderSnapshot([q1, q2]);
 
 		expect(lines[0]).toBe(
-			"<bg:selectedBg><text>  [ ] Language </text></bg:selectedBg> <dim>  [ ] Framework </dim> <dim>  [ ] Submit </dim>",
+			"<bg:selectedBg><text>  ☐ Language </text></bg:selectedBg> <dim>  ☐ Framework </dim> <dim>  ☐ Submit </dim>",
 		);
 		expect(lines[2]).toBe("<b>Which language?</b>");
 	});
@@ -788,7 +789,7 @@ describe("multi-question navigation", () => {
 	it("does not show progress indicator for single question", () => {
 		const { lines } = renderSnapshot([q1]);
 
-		expect(lines[0]).toBe("<bg:selectedBg><text>  [ ] Language </text></bg:selectedBg>");
+		expect(lines[0]).toBe("<bg:selectedBg><text>  ☐ Language </text></bg:selectedBg>");
 		expect(lines[2]).toBe("<b>Which language?</b>");
 	});
 
@@ -807,7 +808,7 @@ describe("multi-question navigation", () => {
 		// Second question: has back hint
 		const lines2 = comp.render(80);
 		expect(lines2[0]).toBe(
-			"<success>  [x] Language </success> <bg:selectedBg><text>  [ ] Framework </text></bg:selectedBg> <dim>  [ ] Submit </dim>",
+			"<success>  ☒ Language </success> <bg:selectedBg><text>  ☐ Framework </text></bg:selectedBg> <dim>  ☐ Submit </dim>",
 		);
 		expect(lines2[lines2.length - 1]).toBe(
 			"<dim>Enter/Space to select · Tab/Arrow keys to navigate · Esc to cancel</dim>",
@@ -826,7 +827,7 @@ describe("multi-question navigation", () => {
 		// Should now show Q2
 		const lines = comp.render(80);
 		expect(lines[0]).toBe(
-			"<success>  [x] Language </success> <bg:selectedBg><text>  [ ] Framework </text></bg:selectedBg> <dim>  [ ] Submit </dim>",
+			"<success>  ☒ Language </success> <bg:selectedBg><text>  ☐ Framework </text></bg:selectedBg> <dim>  ☐ Submit </dim>",
 		);
 		expect(lines[2]).toBe("<b>Which framework?</b>");
 
@@ -835,7 +836,7 @@ describe("multi-question navigation", () => {
 
 		const reviewLines = comp.render(80);
 		expect(reviewLines[0]).toBe(
-			"<success>  [x] Language </success> <success>  [x] Framework </success> <bg:selectedBg><text>  [x] Submit </text></bg:selectedBg>",
+			"<success>  ☒ Language </success> <success>  ☒ Framework </success> <bg:selectedBg><text>  ☒ Submit </text></bg:selectedBg>",
 		);
 		expect(reviewLines[2]).toBe("<b>Review your answers</b>");
 		expect(captured).toBeNull();
@@ -937,7 +938,7 @@ describe("multi-question navigation", () => {
 		comp.handleInput("\x1b[D"); // Left arrow
 		const lines1 = comp.render(80);
 		expect(lines1[0]).toBe(
-			"<bg:selectedBg><text>  [x] Language </text></bg:selectedBg> <dim>  [ ] Framework </dim> <dim>  [ ] Submit </dim>",
+			"<bg:selectedBg><text>  ☒ Language </text></bg:selectedBg> <dim>  ☐ Framework </dim> <dim>  ☐ Submit </dim>",
 		);
 		expect(lines1[2]).toBe("<b>Which language?</b>");
 	});
@@ -952,7 +953,7 @@ describe("multi-question navigation", () => {
 		const lines = comp.render(80);
 		expect(lines).toContain("<accent>❯</accent> <dim>1. </dim><accent><b>TypeScript</b></accent>");
 		expect(lines).toContain("  <dim>2. </dim><accent>Python</accent> <accent>✓</accent>");
-		expect(lines).toContain("     <accent>General purpose</accent>");
+		expect(lines).toContain("     <dim>General purpose</dim>");
 	});
 
 	it("resets focus to the first option when navigating back to an answered question", () => {
@@ -1031,7 +1032,7 @@ describe("multi-question navigation", () => {
 		const lines = comp.render(80);
 		expect(captured).toBeUndefined();
 		expect(lines[0]).toBe(
-			"<dim>  [ ] Language </dim> <dim>  [ ] Framework </dim> <success>  [x] Deploy </success> <bg:selectedBg><text>  [ ] Submit </text></bg:selectedBg>",
+			"<dim>  ☐ Language </dim> <dim>  ☐ Framework </dim> <success>  ☒ Deploy </success> <bg:selectedBg><text>  ☐ Submit </text></bg:selectedBg>",
 		);
 		expect(lines[2]).toBe("<b>Review your answers</b>");
 		expect(lines).toContain("<warning>You have not answered all questions</warning>");

@@ -69,7 +69,7 @@ Current visual rules:
 - Multiple questions render all question tabs side by side, followed by a `Submit` tab.
 - Single-question multi-select pages also render a trailing `Submit` tab.
 - The active tab uses selected background styling and text foreground styling.
-- Answered question tabs and ready submit tabs show `[x]`; unanswered or not-ready tabs show `[ ]`.
+- Answered question tabs and ready submit tabs show `☒`; unanswered or not-ready tabs show `☐`.
 - Inactive answered tabs and ready submit tabs use success styling; inactive unanswered tabs use dim styling.
 - Header tabs include leading padding before the box marker and trailing padding inside the selected background.
 - The question text is rendered through the same `Text(theme.bold(question))` path used by the reference implementation.
@@ -77,8 +77,8 @@ Current visual rules:
 - The focus marker is at the left edge of the component line and uses accent styling.
 - The custom input row displays `Type something`; it does not display `Other`.
 - `Type something` is dim text, not a highlighted background.
-- Option descriptions are dim when unfocused and accent-styled when focused or selected.
-- Selected or checked options use accent styling for the checkbox/label/content and description; the number prefix remains dim.
+- Option descriptions stay dim in every state.
+- Selected or checked options use accent styling for the checkbox/label/content; the number prefix remains dim.
 - Description text is indented to align with the option content column.
 
 Preview-mode visual rules:
@@ -89,7 +89,8 @@ Preview-mode visual rules:
 - A notes row appears under the preview box.
 - The notes row starts at the same column as the preview box left border.
 - The `Notes` label uses accent styling.
-- Empty notes show `press n to add notes` in dim styling.
+- Empty notes show `press n to add notes` in dim styling when notes are not focused.
+- Pressing `n` focuses notes and changes the empty inline placeholder to `Add notes on this design...`, with the cursor on `A`.
 
 ## Single Question
 
