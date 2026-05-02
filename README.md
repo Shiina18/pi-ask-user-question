@@ -127,11 +127,12 @@ Multi-select behavior:
 Preview-mode behavior:
 
 - Preview mode applies only to single-select questions with at least one option preview.
-- `Up` / `Down` moves focus through configured options and updates the preview.
+- `Up` / `Down` moves focus through configured options and updates the preview, including while notes are focused.
 - `1`-`9` moves focus to the numbered option without submitting.
 - `n` focuses the inline notes entry.
 - While notes are focused, printable keys, spaces, and number keys type into notes.
-- `Backspace` deletes the last notes character.
+- `Left` / `Right` moves the notes cursor while notes are focused.
+- `Backspace` deletes the character before the notes cursor.
 - `Enter` while notes are focused submits the currently focused option with the typed notes.
 - `Esc` while notes are focused exits notes entry; a later `Esc` cancels.
 - `Enter` or `Space` outside notes submits the focused option.
@@ -149,7 +150,7 @@ Navigation behavior:
 - `Tab` or `Right` moves to the next question. On the last question it opens review.
 - `Shift+Tab` or `Left` moves to the previous question.
 - Entering a question resets the focus cursor to the first option while preserving any recorded answer.
-- Left/right question navigation is disabled while the custom input row is focused, so typed text is not interrupted.
+- Left/right arrows move the text cursor while the custom input row or preview notes are focused.
 - Single-select `Enter` or `Space` confirms the focused row and advances to the next question or review.
 - Multi-select `Submit` advances to the next question or review.
 - Multi-question navigation can move forward before every question has an answer; review warns when answers are missing.
@@ -206,8 +207,14 @@ Supported keys on question pages:
 - `Space`: selects regular single-select rows, toggles multi-select option rows, confirms focused submit/review rows, and types a space inside non-empty custom input.
 - `Esc`: clears typed custom input when that input is focused and non-empty; otherwise cancels.
 - `1`-`9`: direct action for the visible numbered row.
-- `Tab` / `Right`: next question in multi-question flows.
-- `Shift+Tab` / `Left`: previous question in multi-question flows.
+- `Tab` / `Right`: next question in multi-question flows when text input is not focused.
+- `Shift+Tab` / `Left`: previous question in multi-question flows when text input is not focused.
+
+Cursor behavior:
+
+- `Left` / `Right` moves the text cursor in `Type something` and preview notes.
+- Printable characters insert at the cursor.
+- `Backspace` deletes the character before the cursor.
 
 Number key behavior:
 

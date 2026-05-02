@@ -197,7 +197,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("i"); // type
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>hi▌</b></accent>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>hi<inv> </inv></b></accent>");
 	});
 
 	it("returns typed text as answer on Enter", () => {
@@ -291,7 +291,7 @@ describe("freeform input on Other", () => {
 
 		comp.handleInput("\x1b[B"); // down → returns to Other
 		const returnedLines = comp.render(80);
-		expect(returnedLines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>x▌</b></accent>");
+		expect(returnedLines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>x<inv> </inv></b></accent>");
 	});
 
 	it("backspace deletes last character", () => {
@@ -304,7 +304,26 @@ describe("freeform input on Other", () => {
 		comp.handleInput("\x7f"); // backspace
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>a▌</b></accent>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>a<inv> </inv></b></accent>");
+	});
+
+	it("moves the custom input cursor with Left and Right arrows", () => {
+		const comp = createComp([baseParams], () => {});
+		comp.handleInput("\x1b[B"); // down
+		comp.handleInput("\x1b[B"); // down
+		comp.handleInput("\x1b[B"); // down to Other
+		comp.handleInput("a");
+		comp.handleInput("b");
+		comp.handleInput("\x1b[D"); // move cursor between a and b
+		comp.handleInput("X");
+
+		let lines = comp.render(80);
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>aX<inv>b</inv></b></accent>");
+
+		comp.handleInput("\x1b[C"); // move cursor after b
+		comp.handleInput("Y");
+		lines = comp.render(80);
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>aXbY<inv> </inv></b></accent>");
 	});
 
 	it("types digits while the custom input row is focused", () => {
@@ -313,7 +332,7 @@ describe("freeform input on Other", () => {
 		comp.handleInput("1"); // type, not select option 1
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>1▌</b></accent>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent><b>1<inv> </inv></b></accent>");
 	});
 });
 
@@ -385,6 +404,45 @@ describe("preview questions", () => {
 		expect(output).toContain("2");
 		expect(output).toContain("Compact preview");
 		expect(output).not.toContain("Comfortable preview");
+		expect(captured).toBeUndefined();
+	});
+
+	it("moves the preview notes cursor with Left and Right arrows", () => {
+		let captured: QuestionResult[] | null = null;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+		comp.handleInput("a");
+		comp.handleInput("b");
+		comp.handleInput("\x1b[D"); // move cursor between a and b
+		comp.handleInput("X");
+		comp.handleInput("\r");
+
+		expect(captured).toEqual([
+			{
+				answer: "Compact",
+				selectedIndex: 0,
+				preview: "Compact preview",
+				notes: "aXb",
+			},
+		]);
+	});
+
+	it("navigates preview options with Up and Down while notes are focused", () => {
+		let captured: unknown;
+		const comp = createComp([previewParams], (r) => {
+			captured = r;
+		});
+
+		comp.handleInput("n");
+		comp.handleInput("x");
+		comp.handleInput("\x1b[B"); // down moves option focus and exits notes input
+
+		const output = comp.render(80).join("\n");
+		expect(output).toContain("Comfortable preview");
+		expect(output).toContain("<accent>Notes</accent>: x");
 		expect(captured).toBeUndefined();
 	});
 
@@ -607,7 +665,7 @@ describe("multi-select", () => {
 		comp.handleInput("m"); // type
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>custom▌</b></accent>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>custom<inv> </inv></b></accent>");
 
 		comp.handleInput("\x1b[A"); // up to Logger
 		comp.handleInput(" "); // toggle Logger
@@ -640,7 +698,7 @@ describe("multi-select", () => {
 		comp.handleInput("e");
 
 		const lines = comp.render(80);
-		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>hi there▌</b></accent>");
+		expect(lines[10]).toBe("<accent>❯</accent> <dim>4. </dim><accent>[x] <b>hi there<inv> </inv></b></accent>");
 	});
 
 	it("auto-clears Other selection when text is deleted", () => {

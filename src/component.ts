@@ -39,7 +39,6 @@ const SUBMIT_LABEL = "Submit";
 const SUBMIT_ANSWERS_LABEL = "Submit answers";
 const CANCEL_LABEL = "Cancel";
 const SELECTED_MARKER = "✓";
-const CURSOR = "▌";
 const FOCUS_MARKER = "❯";
 const HELP_SINGLE = "Enter/Space to select · ↑/↓ to navigate · Esc to cancel";
 const HELP_MULTI_QUESTION = "Enter/Space to select · Tab/Arrow keys to navigate · Esc to cancel";
@@ -59,6 +58,34 @@ function renderQuestionText(theme: Theme, text: string, width: number): string {
 
 function renderPlaceholderWithCursor(theme: Theme): string {
 	return theme.inverse(OTHER_PLACEHOLDER[0]) + theme.fg("dim", OTHER_PLACEHOLDER.slice(1));
+}
+
+function clampCursor(cursor: number, text: string): number {
+	return Math.max(0, Math.min(cursor, text.length));
+}
+
+function insertAtCursor(text: string, cursor: number, value: string): { text: string; cursor: number } {
+	const safeCursor = clampCursor(cursor, text);
+	return {
+		text: `${text.slice(0, safeCursor)}${value}${text.slice(safeCursor)}`,
+		cursor: safeCursor + value.length,
+	};
+}
+
+function deleteBeforeCursor(text: string, cursor: number): { text: string; cursor: number } {
+	const safeCursor = clampCursor(cursor, text);
+	if (safeCursor === 0) return { text, cursor: safeCursor };
+	return {
+		text: `${text.slice(0, safeCursor - 1)}${text.slice(safeCursor)}`,
+		cursor: safeCursor - 1,
+	};
+}
+
+function renderTextInputWithCursor(theme: Theme, text: string, cursor: number): string {
+	const safeCursor = clampCursor(cursor, text);
+	const cursorCell = safeCursor < text.length ? text[safeCursor] : " ";
+	const afterCursor = safeCursor < text.length ? text.slice(safeCursor + 1) : "";
+	return `${text.slice(0, safeCursor)}${theme.inverse(cursorCell)}${afterCursor}`;
 }
 
 function getPrintableChar(data: string): string | undefined {
@@ -205,6 +232,7 @@ export function createQuestionComponent(
 	const questionStates: QuestionState[] = params.map((q) =>
 		createInitialState(buildItemsForQuestion(q), q.multiSelect ?? false),
 	);
+	const textInputCursors = params.map(() => 0);
 
 	const collectedAnswers: QuestionResult[] = new Array(totalQuestions).fill(null);
 	let currentIndex = 0;
@@ -304,8 +332,12 @@ export function createQuestionComponent(
 
 	function focusItem(index: number): void {
 		isPreviewNotesFocused = false;
+		const targetState = questionStates[currentIndex];
+		if (targetState.items[index]?.type === "input") {
+			textInputCursors[currentIndex] = targetState.textInputValue.length;
+		}
 		questionStates[currentIndex] = {
-			...questionStates[currentIndex],
+			...targetState,
 			highlightedIndex: index,
 			isSubmitFocused: false,
 			confirmed: false,
@@ -379,7 +411,9 @@ export function createQuestionComponent(
 
 			if (focused) {
 				const hasInput = state.textInputValue.length > 0;
-				const inputText = hasInput ? `${state.textInputValue}${CURSOR}` : renderPlaceholderWithCursor(theme);
+				const inputText = hasInput
+					? renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor())
+					: renderPlaceholderWithCursor(theme);
 				const label = hasInput ? theme.bold(inputText) : inputText;
 				const rowRest = `${checkMarker}${label}`;
 				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
@@ -404,6 +438,20 @@ export function createQuestionComponent(
 		return lines;
 	}
 
+	function getCurrentTextInputCursor(): number {
+		return clampCursor(textInputCursors[currentIndex], questionStates[currentIndex].textInputValue);
+	}
+
+	function setCurrentTextInputCursor(cursor: number): void {
+		textInputCursors[currentIndex] = clampCursor(cursor, questionStates[currentIndex].textInputValue);
+		refresh();
+	}
+
+	function updateFocusedInputText(text: string, cursor: number): void {
+		textInputCursors[currentIndex] = clampCursor(cursor, text);
+		dispatch({ type: "updateTextInput", text });
+	}
+
 	function updatePreviewNotes(text: string): void {
 		questionStates[currentIndex] = {
 			...questionStates[currentIndex],
@@ -416,7 +464,7 @@ export function createQuestionComponent(
 		const label = theme.fg("accent", "Notes");
 		const prefix = `${" ".repeat(PREVIEW_LEFT_WIDTH)}${PREVIEW_GAP}`;
 		if (isPreviewNotesFocused) {
-			return `${prefix}${label}: ${theme.fg("accent", `${state.textInputValue}${CURSOR}`)}`;
+			return `${prefix}${label}: ${theme.fg("accent", renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor()))}`;
 		}
 		if (state.textInputValue.length > 0) {
 			return `${prefix}${label}: ${state.textInputValue}`;
@@ -572,24 +620,46 @@ export function createQuestionComponent(
 				refresh();
 				return;
 			}
+			if (kb.matches(data, KB_UP)) {
+				isPreviewNotesFocused = false;
+				dispatch({ type: "navigateUp" });
+				return;
+			}
+			if (kb.matches(data, KB_DOWN)) {
+				isPreviewNotesFocused = false;
+				dispatch({ type: "navigateDown" });
+				return;
+			}
+			if (matchesKey(data, Key.left)) {
+				setCurrentTextInputCursor(getCurrentTextInputCursor() - 1);
+				return;
+			}
+			if (matchesKey(data, Key.right)) {
+				setCurrentTextInputCursor(getCurrentTextInputCursor() + 1);
+				return;
+			}
 			if (kb.matches(data, KB_CONFIRM)) {
 				dispatch({ type: "selectCurrent" });
 				return;
 			}
 			if (matchesKey(data, Key.backspace)) {
-				updatePreviewNotes(state.textInputValue.slice(0, -1));
+				const updated = deleteBeforeCursor(state.textInputValue, getCurrentTextInputCursor());
+				textInputCursors[currentIndex] = updated.cursor;
+				updatePreviewNotes(updated.text);
 				return;
 			}
 			const ch = getPrintableChar(data);
 			if (ch !== undefined) {
-				updatePreviewNotes(state.textInputValue + ch);
+				const updated = insertAtCursor(state.textInputValue, getCurrentTextInputCursor(), ch);
+				textInputCursors[currentIndex] = updated.cursor;
+				updatePreviewNotes(updated.text);
 			}
 			return;
 		}
 
 		if (matchesKey(data, Key.escape)) {
 			if (inputFocused && state.textInputValue.length > 0) {
-				dispatch({ type: "updateTextInput", text: "" });
+				updateFocusedInputText("", 0);
 				return;
 			}
 			done(null);
@@ -631,6 +701,7 @@ export function createQuestionComponent(
 		}
 
 		if (previewMode && data === "n") {
+			textInputCursors[currentIndex] = state.textInputValue.length;
 			isPreviewNotesFocused = true;
 			refresh();
 			return;
@@ -678,13 +749,19 @@ export function createQuestionComponent(
 
 		if (inputFocused) {
 			if (matchesKey(data, Key.backspace)) {
-				dispatch({ type: "updateTextInput", text: state.textInputValue.slice(0, -1) });
+				const updated = deleteBeforeCursor(state.textInputValue, getCurrentTextInputCursor());
+				updateFocusedInputText(updated.text, updated.cursor);
+			} else if (matchesKey(data, Key.left)) {
+				setCurrentTextInputCursor(getCurrentTextInputCursor() - 1);
+			} else if (matchesKey(data, Key.right)) {
+				setCurrentTextInputCursor(getCurrentTextInputCursor() + 1);
 			} else if (matchesKey(data, Key.space) && state.textInputValue.length === 0) {
 				return;
 			} else {
 				const ch = getPrintableChar(data);
 				if (ch !== undefined) {
-					dispatch({ type: "updateTextInput", text: state.textInputValue + ch });
+					const updated = insertAtCursor(state.textInputValue, getCurrentTextInputCursor(), ch);
+					updateFocusedInputText(updated.text, updated.cursor);
 				}
 			}
 		}
