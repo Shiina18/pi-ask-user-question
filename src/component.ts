@@ -423,7 +423,7 @@ export function createQuestionComponent(
 		return [...questionTabs, styledSubmit].join(" ");
 	}
 
-	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
+	function renderQuestionLines(q: QuestionParams, state: QuestionState, width: number): string[] {
 		const multiSelect = q.multiSelect ?? false;
 		const lines: string[] = [];
 
@@ -441,11 +441,30 @@ export function createQuestionComponent(
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const descriptionPrefix = "     ";
-				const label = focused ? theme.bold(opt.label) : opt.label;
-				const rowRest = `${checkMarker}${label}`;
-				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
-				lines.push(`${prefix}${row}${selectedMarker}`);
-				lines.push(`${descriptionPrefix}${theme.fg("dim", opt.description)}`);
+				const prefixWidth = visibleWidth(prefix);
+				const numberPrefixWidth = visibleWidth(numberPrefix);
+				const checkMarkerWidth = visibleWidth(checkMarker);
+				const selectedMarkerWidth = visibleWidth(selectedMarker);
+				const firstLineLabelWidth = Math.max(
+					1,
+					width - prefixWidth - numberPrefixWidth - checkMarkerWidth - selectedMarkerWidth,
+				);
+				const continuationIndent = " ".repeat(prefixWidth + numberPrefixWidth + checkMarkerWidth);
+				const labelLines = wrapPlainText(opt.label, firstLineLabelWidth);
+				for (const [lineIndex, segment] of labelLines.entries()) {
+					if (lineIndex === 0) {
+						const label = focused ? theme.bold(segment) : segment;
+						const rowRest = `${checkMarker}${label}`;
+						const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
+						lines.push(`${prefix}${row}${selectedMarker}`);
+						continue;
+					}
+					lines.push(`${continuationIndent}${focused ? theme.bold(segment) : segment}`);
+				}
+				const descriptionWidth = Math.max(1, width - visibleWidth(descriptionPrefix));
+				for (const segment of wrapPlainText(opt.description, descriptionWidth)) {
+					lines.push(`${descriptionPrefix}${theme.fg("dim", segment)}`);
+				}
 				continue;
 			}
 
@@ -631,7 +650,7 @@ export function createQuestionComponent(
 		if (isPreviewQuestion(q)) {
 			lines.push(...renderPreviewQuestionLines(q, state, _width));
 		} else {
-			lines.push(...renderQuestionLines(q, state));
+			lines.push(...renderQuestionLines(q, state, _width));
 		}
 
 		lines.push("");
