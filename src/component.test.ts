@@ -1262,3 +1262,145 @@ describe("multi-question navigation", () => {
 		expect(captured![3]?.answer).toBe("TypeScript");
 	});
 });
+
+describe("terminal width overflow safety (pi TUI crash regression)", () => {
+	// pi 的 TUI 渲染引擎在任一渲染行可见宽度超过终端宽度时会写 crash 日志并抛错退出，
+	// 这里回归验证组件在各类长文本场景下都不产生超宽行
+	const stripMockTags = (line: string) => line.replace(/<[^>]+>/g, "");
+	const assertAllLinesWithin = (lines: string[], width: number) => {
+		for (const [index, line] of lines.entries()) {
+			expect(visibleWidth(stripMockTags(line)), `line ${index} exceeds ${width}: ${line}`).toBeLessThanOrEqual(width);
+		}
+	};
+
+	it("keeps long CJK option descriptions within the crash-terminal width (166) without truncation", () => {
+		const longCjkDescription =
+			"通过 env 限定 worker fingerprint OS=Windows + 删 fonts/{macos,linux}。worker 行为改变（UA 恒为 Win），font fingerprint 多样性降低，但 Camoufox 反指纹其他维度（WebGL/canvas noise）仍工作。体积 → ~1.36GB（瘦 34%）。访问非中英日韩站点可能渲染异常。";
+		const { lines } = renderSnapshotWithWidth(
+			[
+				{
+					question:
+						"镜像里 Camoufox 自带的字体集占 932MB，这里是镜像的一半，最大瘦身来自删除部分平台字体，这里有一个重要的设计决策点需要确认，再继续激进瘦身？",
+					header: "字体策略",
+					options: [
+						{
+							label: "保守（推荐）",
+							description:
+								"Fonts 不动，只做安全清理。worker UA 随机 Win/Mac/Linux 全部可用，反指纹最强。体积从 2.06GB → ~1.97GB。",
+						},
+						{ label: "激进-限Win", description: longCjkDescription },
+						{
+							label: "激进-极限",
+							description:
+								"在激进-限Win基础上，进一步删 Windows 字体里的非核心脚本（印度/阿拉伯/藏/缅甸等），只保留西文 + 中日韩 CJK。体积 → ~1.1GB（瘦 47%）。",
+						},
+					],
+				},
+			],
+			166,
+		);
+
+		assertAllLinesWithin(lines, 166);
+		const output = lines.join("\n");
+		expect(output).toContain("渲染异常。");
+		expect(output).not.toContain("...");
+	});
+
+	it("wraps single overlong CJK words per visible width instead of truncating content", () => {
+		const description = "一二三四五六七八九十".repeat(8); // 80 可见宽，超过 40 宽的整“词”
+		const { lines } = renderSnapshotWithWidth(
+			[{ question: "问题", header: "换行", options: [{ label: "选项", description }] }],
+			40,
+		);
+
+		assertAllLinesWithin(lines, 40);
+		// 所有描述行拼接后应还原完整内容（未被省略号截断），
+		// 逐字断行可能把任意字对拆到两行，所以验证整体而不是末尾两个字
+		// 描述行 = 五空格缩进 + dim 描述段；Other 行是两空格开头、帮助行顶格，均可排除
+		const descriptionLines = lines.filter((line) => /^ {5}<dim>/.test(line));
+		const rejoined = descriptionLines
+			.join("")
+			.replace(/<[^>]+>/g, "")
+			.replace(/\s/g, "");
+		expect(rejoined).toBe(description);
+		expect(rejoined).not.toContain("...");
+	});
+
+	it("wraps long question text across multiple lines within terminal width", () => {
+		const question =
+			"Camoufox 的 fonts.conf 明确警告「修改会破坏指纹一致性」而字体集占 932MB 是镜像的一半，在保守清理与激进瘦身之间需要权衡多少风险才是可以接受的？";
+		const { lines } = renderSnapshotWithWidth(
+			[{ question, header: "问题", options: [{ label: "A", description: "d" }] }],
+			60,
+		);
+
+		assertAllLinesWithin(lines, 60);
+		const output = lines.join("\n");
+		expect(output).toContain("接受的？"); // 问题文本换行后完整可见，不再只剩第一行
+	});
+
+	it("truncates overlong option labels instead of exceeding terminal width", () => {
+		const label = "特别特别特别长".repeat(12);
+		const { lines } = renderSnapshotWithWidth(
+			[{ question: "Q", header: "标签", options: [{ label, description: "d" }] }],
+			48,
+		);
+
+		assertAllLinesWithin(lines, 48);
+	});
+
+	it("keeps the review screen within terminal width for long questions and answers", () => {
+		const longQuestion =
+			"这是一个足够长的问题文本，用来验证 review 页的问题行会按终端宽度安全换行而不会撑破渲染？好的。";
+		const longAnswerLabel = "一个足够长的选项标签，多选确认后会在 review 页拼成很长的答案行，必须按宽度换行。";
+		let captured: QuestionResult[] | null = null;
+		const comp = createComp(
+			[
+				{
+					question: longQuestion,
+					header: "问题一",
+					options: [
+						{ label: longAnswerLabel, description: "d1" },
+						{ label: "普通选项", description: "d2" },
+					],
+				},
+				{
+					question: "第二个问题？",
+					header: "问题二",
+					options: [
+						{ label: "甲", description: "d" },
+						{ label: "乙", description: "d" },
+					],
+				},
+			],
+			(r) => {
+				captured = r;
+			},
+		);
+
+		comp.handleInput("\r"); // 问题一：选择第一项（长标签）
+		comp.handleInput("\r"); // 问题二：选择第一项，进入 review
+		const lines = comp.render(72);
+		expect(lines.join("\n")).toContain("Review your answers");
+
+		assertAllLinesWithin(lines, 72);
+		const output = lines.join("\n");
+		expect(output).toContain("安全换行");
+		if (captured === null) {
+			// review 尚未提交，这里不需要结果，仅静态检查渲染
+		}
+	});
+
+	it("degrades styled header tabs to a truncated plain line in extremely narrow terminals", () => {
+		const params: QuestionParams[] = [
+			{ question: "问题一？", header: "HeadOne", options: [{ label: "A", description: "d" }] },
+			{ question: "问题二？", header: "HeadTwo", options: [{ label: "B", description: "d" }] },
+			{ question: "问题三？", header: "HeadThree", options: [{ label: "C", description: "d" }] },
+		];
+		const { lines: wide } = renderSnapshotWithWidth(params, 120);
+		expect(wide.join("\n")).toContain("HeadTwo");
+
+		const { lines: narrow } = renderSnapshotWithWidth(params, 44);
+		assertAllLinesWithin(narrow, 44);
+	});
+});
