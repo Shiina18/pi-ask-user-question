@@ -171,6 +171,27 @@ describe("render snapshot", () => {
 		]);
 	});
 
+	it("wraps long option labels and descriptions so no line exceeds the terminal width", () => {
+		const width = 60;
+		const longLabel = `A ${"really long option label that keeps going and going ".repeat(4).trim()}`;
+		const longDesc = "description fragment that is far too long for a narrow terminal ".repeat(10).trim();
+		const { lines } = renderSnapshotWithWidth(
+			[
+				{
+					question: "Overflow?",
+					header: "Overflow",
+					options: [{ label: longLabel, description: longDesc }],
+				},
+			],
+			width,
+		);
+
+		const plain = (line: string) => line.replace(/<[^>]*>/g, "");
+		for (const line of lines) {
+			expect(visibleWidth(plain(line))).toBeLessThanOrEqual(width);
+		}
+	});
+
 	it("renders preview questions without 'Other' and shows the focused preview", () => {
 		const { lines } = renderSnapshot([previewParams]);
 
