@@ -85,7 +85,24 @@ function wrapPlainText(text: string, width: number): string[] {
 			continue;
 		}
 
-		lines.push(fitToWidth(word, maxWidth));
+		// 一个“词”就超过整行宽度时（常见于没有空格分隔的 CJK 文本），
+		// 按可见宽度逐字符断行，避免用省略号截断丢内容
+		let segment = "";
+		let segmentWidth = 0;
+		for (const ch of word) {
+			const chWidth = visibleWidth(ch);
+			if (segmentWidth + chWidth > maxWidth && segment.length > 0) {
+				lines.push(segment);
+				segment = ch;
+				segmentWidth = chWidth;
+			} else {
+				segment += ch;
+				segmentWidth += chWidth;
+			}
+		}
+		if (segment.length > 0) {
+			lines.push(segment);
+		}
 	}
 
 	if (current.length > 0) {
@@ -95,8 +112,9 @@ function wrapPlainText(text: string, width: number): string[] {
 	return lines.length > 0 ? lines : [""];
 }
 
-function renderQuestionText(theme: Theme, text: string, width: number): string {
-	return new Text(theme.bold(text), 0, 0).render(width)[0]?.trimEnd() ?? "";
+function renderQuestionText(theme: Theme, text: string, width: number): string[] {
+	// Text 会按宽度换行，保留全部换行结果，避免只取第一行而丢失问题内容
+	return new Text(theme.bold(text), 0, 0).render(width).map((line) => line.trimEnd());
 }
 
 function renderPlaceholderWithCursor(theme: Theme, placeholder: string): string {
@@ -394,7 +412,25 @@ export function createQuestionComponent(
 		return currentIndex === totalQuestions - 1 ? SUBMIT_LABEL : NEXT_LABEL;
 	}
 
-	function renderHeaderTabs(): string {
+	function renderHeaderTabs(width: number): string {
+		// 先校验裸文本宽度：正常情况按主题样式渲染；仅在极端窄终端时降级为无色截断行，
+		// 避免多色彩拼接行超出终端宽度导致 pi 核心渲染崩溃
+		const bareTabWidth = (header: string, box: string) => visibleWidth(`  ${box} ${header} `);
+		let bareWidth = params.reduce((sum, q) => sum + bareTabWidth(q.header, TAB_UNANSWERED) + 1, -1);
+		if (isMultiQuestion || isSingleQuestionMultiSelect) {
+			bareWidth += bareTabWidth(SUBMIT_LABEL, TAB_UNANSWERED) + 1;
+		}
+		if (bareWidth > width) {
+			const bareTabs = params.map((q, index) => {
+				const box = collectedAnswers[index] !== null ? TAB_ANSWERED : TAB_UNANSWERED;
+				return `  ${box} ${q.header} `;
+			});
+			if (isMultiQuestion || isSingleQuestionMultiSelect) {
+				bareTabs.push(`  ${TAB_UNANSWERED} ${SUBMIT_LABEL} `);
+			}
+			return fitToWidth(bareTabs.join(" "), width);
+		}
+
 		const questionTabs = params.map((q, index) => {
 			const answered = collectedAnswers[index] !== null;
 			const box = answered ? TAB_ANSWERED : TAB_UNANSWERED;
@@ -423,7 +459,7 @@ export function createQuestionComponent(
 		return [...questionTabs, styledSubmit].join(" ");
 	}
 
-	function renderQuestionLines(q: QuestionParams, state: QuestionState): string[] {
+	function renderQuestionLines(q: QuestionParams, state: QuestionState, width: number): string[] {
 		const multiSelect = q.multiSelect ?? false;
 		const lines: string[] = [];
 
@@ -441,25 +477,55 @@ export function createQuestionComponent(
 			if (item.type === "option") {
 				const opt = q.options[i];
 				const descriptionPrefix = "     ";
-				const label = focused ? theme.bold(opt.label) : opt.label;
+				// 选项行与自由输入行都在裸文本层按终端宽度截断，避免可见宽度超过终端宽度导致 pi 核心渲染崩溃
+				const labelBudget = Math.max(
+					1,
+					width -
+						2 -
+						(String(i + 1).length + 2) -
+						visibleWidth(checkMarker) -
+						(selected ? visibleWidth(` ${SELECTED_MARKER}`) : 0),
+				);
+				let labelText = opt.label;
+				if (visibleWidth(labelText) > labelBudget) {
+					labelText = fitToWidth(labelText, labelBudget);
+				}
+				const label = focused ? theme.bold(labelText) : labelText;
 				const rowRest = `${checkMarker}${label}`;
 				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
-				lines.push(`${descriptionPrefix}${theme.fg("dim", opt.description)}`);
+				// description 按终端宽度换行，避免其可见宽度超过终端宽度导致 pi 核心渲染崩溃
+				const descWidth = Math.max(1, width - visibleWidth(descriptionPrefix));
+				for (const desc of wrapPlainText(opt.description, descWidth)) {
+					lines.push(`${descriptionPrefix}${theme.fg("dim", desc)}`);
+				}
 				continue;
 			}
 
+			const inputBudget = Math.max(
+				1,
+				width -
+					2 -
+					(String(i + 1).length + 2) -
+					visibleWidth(checkMarker) -
+					(selected ? visibleWidth(` ${SELECTED_MARKER}`) : 0),
+			);
+			const clipInput = (value: string): string =>
+				visibleWidth(value) > inputBudget ? fitToWidth(value, inputBudget) : value;
+
 			if (focused) {
 				const hasInput = state.textInputValue.length > 0;
+				const displayValue = clipInput(state.textInputValue);
 				const inputText = hasInput
-					? renderTextInputWithCursor(theme, state.textInputValue, getCurrentTextInputCursor())
+					? renderTextInputWithCursor(theme, displayValue, clampCursor(getCurrentTextInputCursor(), displayValue))
 					: renderPlaceholderWithCursor(theme, OTHER_PLACEHOLDER);
 				const label = hasInput ? theme.bold(inputText) : inputText;
 				const rowRest = `${checkMarker}${label}`;
 				const row = `${numberPrefix}${chosen || focused ? theme.fg("accent", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
 			} else {
-				const inputText = state.textInputValue.length > 0 ? state.textInputValue : theme.fg("dim", OTHER_PLACEHOLDER);
+				const inputText =
+					state.textInputValue.length > 0 ? clipInput(state.textInputValue) : theme.fg("dim", OTHER_PLACEHOLDER);
 				const rowRest = `${checkMarker}${inputText}`;
 				const row = `${numberPrefix}${chosen ? theme.fg("accent", rowRest) : rowRest}`;
 				lines.push(`${prefix}${row}${selectedMarker}`);
@@ -570,11 +636,11 @@ export function createQuestionComponent(
 		return lines;
 	}
 
-	function renderReviewLines(_width: number): string[] {
+	function renderReviewLines(width: number): string[] {
 		const lines: string[] = [];
 		const allAnswered = hasAllAnswers();
 
-		lines.push(renderHeaderTabs());
+		lines.push(renderHeaderTabs(width));
 		lines.push("");
 		lines.push(theme.bold("Review your answers"));
 		lines.push("");
@@ -587,8 +653,13 @@ export function createQuestionComponent(
 		for (let i = 0; i < totalQuestions; i++) {
 			const answer = collectedAnswers[i];
 			if (!answer) continue;
-			lines.push(`  ${params[i].question}`);
-			lines.push(`    ${theme.fg("success", answer.answer)}`);
+			// 问题与答案都按终端宽度换行，避免长文本导致 pi 核心渲染崩溃
+			for (const questionLine of wrapPlainText(params[i].question, Math.max(1, width - 2))) {
+				lines.push(`  ${questionLine}`);
+			}
+			for (const answerLine of wrapPlainText(answer.answer, Math.max(1, width - 4))) {
+				lines.push(`    ${theme.fg("success", answerLine)}`);
+			}
 		}
 
 		if (collectedAnswers.some((answer) => answer !== null)) {
@@ -604,7 +675,9 @@ export function createQuestionComponent(
 			`${cancelPrefix}${reviewFocusedIndex === 1 ? theme.fg("accent", theme.bold(CANCEL_LABEL)) : CANCEL_LABEL}`,
 		);
 		lines.push("");
-		lines.push(theme.fg("dim", "Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel"));
+		lines.push(
+			theme.fg("dim", fitToWidth("Enter/Space to select · ↑/↓ to navigate · ← to go back · Esc to cancel", width)),
+		);
 
 		return lines;
 	}
@@ -622,21 +695,22 @@ export function createQuestionComponent(
 		const q = params[currentIndex];
 		const state = questionStates[currentIndex];
 
-		lines.push(renderHeaderTabs());
+		lines.push(renderHeaderTabs(_width));
 		lines.push("");
 
-		lines.push(renderQuestionText(theme, q.question, _width));
+		lines.push(...renderQuestionText(theme, q.question, _width));
 		lines.push("");
 
 		if (isPreviewQuestion(q)) {
 			lines.push(...renderPreviewQuestionLines(q, state, _width));
 		} else {
-			lines.push(...renderQuestionLines(q, state));
+			lines.push(...renderQuestionLines(q, state, _width));
 		}
 
 		lines.push("");
 		const helpText = isMultiQuestion || isSingleQuestionMultiSelect ? HELP_MULTI_QUESTION : HELP_SINGLE;
-		lines.push(theme.fg("dim", helpText));
+		// 帮助行也是静态文本，窄终端下需截断避免超宽
+		lines.push(theme.fg("dim", fitToWidth(helpText, _width)));
 
 		cachedLines = lines;
 		cachedWidth = _width;
